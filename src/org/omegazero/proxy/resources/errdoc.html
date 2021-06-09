@@ -1,0 +1,20 @@
+<!-- The default error document of omz_proxy3 -->
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>${status} ${title}</title>
+		<meta charset="utf-8" />
+	</head>
+	<body>
+		<h1>${title} (${status})</h1>
+		${message}<br />
+		<br />
+		<hr />
+		<br />
+		Request ID: ${requestId}<br />
+		Client address: ${clientAddress}<br />
+		Time: ${time}<br />
+		<br />
+		<i>${servername}</i>
+	</body>
+</html>
