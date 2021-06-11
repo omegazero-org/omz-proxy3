@@ -171,7 +171,7 @@ public class HTTP1 implements HTTPEngine {
 				HTTPCommon.setDefaultHeaders(this.proxy, request);
 			}
 
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request);
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
 			if(!disableDefaultRequestLog)
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(request.getRequestId()), " - '", request.requestLine(),
 						"'");
@@ -192,6 +192,10 @@ public class HTTP1 implements HTTPEngine {
 				this.respondError(request, HTTPCommon.STATUS_NOT_FOUND, "Not Found", "No appropriate upstream server was found for this request");
 				return;
 			}
+
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request, this.lastUpstreamServer);
+			if(this.hasReceivedResponse())
+				return;
 		}
 
 		UpstreamServer userver = this.lastUpstreamServer;

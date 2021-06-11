@@ -30,7 +30,8 @@ public final class ProxyEvents {
 	public static final Event INVALID_UPSTREAM_SERVER = new Event("onInvalidUpstreamServer", new Class<?>[] { SocketConnection.class, HTTPMessage.class });
 	public static final Event INVALID_HTTP_RESPONSE = new Event("onInvalidHTTPResponse",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, byte[].class });
-	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, HTTPMessage.class });
+	public static final Event HTTP_REQUEST_PRE_LOG = new Event("onHTTPRequestPreLog", new Class<?>[] { SocketConnection.class, HTTPMessage.class });
+	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE = new Event("onHTTPResponse",
