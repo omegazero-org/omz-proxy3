@@ -58,7 +58,7 @@ public class HTTP1 implements HTTPEngine {
 
 	private HTTPMessage lastRequest;
 	private UpstreamServer lastUpstreamServer;
-	private Map<UpstreamServer, SocketConnection> upstreamConnections = new java.util.HashMap<>();
+	private Map<UpstreamServer, SocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
 
 	public HTTP1(SocketConnection downstreamConnection, Proxy proxy) {
 		this.downstreamConnection = Objects.requireNonNull(downstreamConnection);
