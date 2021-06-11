@@ -18,6 +18,7 @@ import org.omegazero.common.event.Tasks;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.common.util.Args;
+import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.common.util.Util;
 
 public class ProxyMain {
@@ -26,7 +27,7 @@ public class ProxyMain {
 
 	private static Proxy proxy;
 
-	private static final int shutdownTimeout = 2000;
+	private static int shutdownTimeout;
 	private static boolean shuttingDown = false;
 
 	public static void main(String[] pargs) {
@@ -93,6 +94,8 @@ public class ProxyMain {
 				return;
 			shuttingDown = true;
 
+			shutdownTimeout = PropertyUtil.getInt("org.omegazero.proxy.shutdownTimeout", 2000);
+
 			logger.info("Shutting down");
 
 			try{
@@ -103,7 +106,7 @@ public class ProxyMain {
 			}
 			Tasks.timeout((args) -> {
 				ProxyMain.closeTimeout();
-			}, 2000).daemon();
+			}, shutdownTimeout).daemon();
 			LoggerUtil.close();
 
 			Tasks.exit();
@@ -123,7 +126,6 @@ public class ProxyMain {
 					logger.warn("Still running thread (stack trace below): " + t.getName());
 					for(StackTraceElement ste : t.getStackTrace())
 						logger.warn("    " + ste);
-					break;
 				}
 			}
 		}catch(Throwable e){
