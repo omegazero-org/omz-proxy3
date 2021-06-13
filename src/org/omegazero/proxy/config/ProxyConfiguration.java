@@ -41,8 +41,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	@ConfigurationOption(description = "The local address the proxy server should bind to")
 	private String bindAddress = null;
-	@ConfigurationOption()
-	private int backlog = 1024;
+	@ConfigurationOption
+	private int backlog = 0;
 
 	@ConfigurationOption(description = "Plaintext ports the proxy server should listen on")
 	private List<Integer> portsPlain = new ArrayList<>();
@@ -70,7 +70,7 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private int upstreamServerPortTLS = 443;
 
 	@ConfigurationOption(description = "The maximum time in seconds to wait until a connection to an upstream server is established before reporting an error")
-	private int upstreamConnectionTimeout = 5;
+	private int upstreamConnectionTimeout = 30;
 
 	@ConfigurationOption(description = "If the proxy should add additional HTTP headers to proxied HTTP messages (for example 'Via')")
 	private boolean enableHeaders = true;
@@ -91,8 +91,7 @@ public class ProxyConfiguration extends JSONConfiguration {
 	}
 
 
-	private void loadConfigurationTLSAuth(JSONObject obj) {
-		JSONObject tlsEntry = (JSONObject) obj;
+	private void loadConfigurationTLSAuth(JSONObject tlsEntry) {
 		String servername;
 		if(tlsEntry.has("servername"))
 			servername = tlsEntry.getString("servername");
