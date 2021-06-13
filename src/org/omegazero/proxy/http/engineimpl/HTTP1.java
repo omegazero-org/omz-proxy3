@@ -19,7 +19,6 @@ import java.util.Objects;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
-import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.client.PlainTCPClientManager;
 import org.omegazero.net.client.TLSClientManager;
@@ -42,8 +41,6 @@ public class HTTP1 implements HTTPEngine {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	private static final boolean disableDefaultRequestLog = PropertyUtil.getBoolean("org.omegazero.proxy.disableDefaultRequestLog", false);
-
 	private static final byte[] HTTP1_HEADER_END = new byte[] { 0x0d, 0x0a, 0x0d, 0x0a };
 	private static final String[] HTTP1_ALPN = new String[] { "http/1.1" };
 
@@ -53,6 +50,8 @@ public class HTTP1 implements HTTPEngine {
 
 	private final String downstreamConnectionDbgstr;
 	private final boolean downstreamSecurity;
+
+	private final boolean disableDefaultRequestLog;
 
 	private boolean downstreamClosed;
 
@@ -66,6 +65,8 @@ public class HTTP1 implements HTTPEngine {
 
 		this.downstreamConnectionDbgstr = this.proxy.debugStringForConnection(this.downstreamConnection, null);
 		this.downstreamSecurity = this.downstreamConnection instanceof TLSConnection;
+
+		this.disableDefaultRequestLog = this.proxy.getConfig().isDisableDefaultRequestLog();
 	}
 
 
@@ -172,7 +173,7 @@ public class HTTP1 implements HTTPEngine {
 			}
 
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
-			if(!disableDefaultRequestLog)
+			if(!this.disableDefaultRequestLog)
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(request.getRequestId()), " - '", request.requestLine(),
 						"'");
 			if(this.hasReceivedResponse())

@@ -81,6 +81,9 @@ public class ProxyConfiguration extends JSONConfiguration {
 	@ConfigurationOption
 	private Map<String, ConfigObject> pluginConfig = new HashMap<>();
 
+	@ConfigurationOption
+	private boolean disableDefaultRequestLog = false;
+
 
 	public ProxyConfiguration(byte[] fileData) {
 		super(fileData);
@@ -228,6 +231,9 @@ public class ProxyConfiguration extends JSONConfiguration {
 			return new ConfigObject();
 	}
 
+	public boolean isDisableDefaultRequestLog() {
+		return this.disableDefaultRequestLog;
+	}
 
 	private static ConfigObject convertJSONObject(JSONObject json) {
 		ConfigObject obj = new ConfigObject();
@@ -247,7 +253,9 @@ public class ProxyConfiguration extends JSONConfiguration {
 			while(data.hasNext())
 				carr.data.add(ProxyConfiguration.convertJSONValue(data.next()));
 			return carr;
-		}else
+		}else if(v == JSONObject.NULL)
+			return null;
+		else
 			return v;
 	}
 }
