@@ -188,15 +188,6 @@ public class ConfigObject implements Serializable {
 	}
 
 
-	/*private <T> T getValueOfType(Class<T> type, String key) {
-		Object v = this.get(key);
-		if(v != null && type.isAssignableFrom(v.getClass()))
-			return type.cast(v);
-		else
-			return null;
-	}*/
-
-
 	private static String getTypeName(Object obj) {
 		return obj == null ? "null" : obj.getClass().getName();
 	}
