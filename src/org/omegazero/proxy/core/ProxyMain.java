@@ -111,7 +111,7 @@ public class ProxyMain {
 
 			Tasks.exit();
 		}catch(Exception e){
-			logger.fatal("Error while shutting down", e);
+			logger.fatal("Error while shutting down: ", e);
 		}finally{
 			if(!Util.waitForNonDaemonThreads(shutdownTimeout))
 				ProxyMain.closeTimeout();
