@@ -116,12 +116,8 @@ public final class HTTPCommon {
 	}
 
 	public static void setDefaultHeaders(Proxy proxy, HTTPMessage msg) {
-		String via = msg.getHeader("via");
-		via = ((via != null) ? (via + ", ") : "") + msg.getVersion() + " " + proxy.getInstanceName();
-		msg.setHeader("via", via);
-		String reqid = msg.getHeader("x-request-id");
-		reqid = ((reqid != null) ? (reqid + ",") : "") + msg.getRequestId();
-		msg.setHeader("x-request-id", reqid);
+		msg.appendHeader("via", msg.getVersion() + " " + proxy.getInstanceName(), ", ");
+		msg.appendHeader("x-request-id", msg.getRequestId(), ",");
 	}
 
 	public static String getUpstreamErrorMessage(Throwable e) {

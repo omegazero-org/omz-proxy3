@@ -204,6 +204,21 @@ public class HTTPMessage implements Serializable {
 	}
 
 	/**
+	 * Appends the given <b>value</b> to an existing header with the given <b>key</b>, separated by <b>separator</b>, or sets a header with the given <b>value</b> if no such
+	 * header exists.
+	 * 
+	 * @param key       The HTTP field name of this header field
+	 * @param value     The value to append to this header field, or the value of the header if it did not exist
+	 * @param separator The separator between the existing value and the new value
+	 */
+	public void appendHeader(String key, String value, String separator) {
+		Objects.requireNonNull(key);
+		String val = this.getHeader(key);
+		val = ((val != null) ? (val + Objects.requireNonNull(separator)) : "") + Objects.requireNonNull(value);
+		this.setHeader(key, val);
+	}
+
+	/**
 	 * 
 	 * @param key The HTTP field name of the header to search for
 	 * @return <code>true</code> if a header with the given key exists
