@@ -13,6 +13,8 @@ package org.omegazero.proxy.config;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
@@ -39,8 +41,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 	public static final String TLS_AUTH_DEFAULT_NAME = "default";
 
 
-	@ConfigurationOption(description = "The local address the proxy server should bind to")
-	private String bindAddress = null;
+	@ConfigurationOption(description = "A list of local addresses the proxy server should bind to")
+	private List<InetAddress> bindAddresses = null;
 	@ConfigurationOption
 	private int backlog = 0;
 
@@ -154,6 +156,22 @@ public class ProxyConfiguration extends JSONConfiguration {
 				}
 			}else
 				throw new IllegalArgumentException("'pluginConfig' must be an object");
+		}else if(field.getName().equals("bindAddresses")){
+			// JSONArray check already done because it is a list
+			((JSONArray) jsonObject).forEach((obj) -> {
+				if(ProxyConfiguration.this.bindAddresses == null)
+					ProxyConfiguration.this.bindAddresses = new ArrayList<>();
+				if(obj == JSONObject.NULL){
+					ProxyConfiguration.this.bindAddresses.add(null);
+				}else if(obj instanceof String){
+					try{
+						ProxyConfiguration.this.bindAddresses.add(InetAddress.getByName((String) obj));
+					}catch(UnknownHostException e){
+						throw new IllegalArgumentException("Invalid local address '" + obj + "'");
+					}
+				}else
+					throw new IllegalArgumentException("Values in 'bindAddresses' must be strings");
+			});
 		}else
 			return false;
 		return true;
@@ -167,8 +185,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 	}
 
 
-	public String getBindAddress() {
-		return this.bindAddress;
+	public List<InetAddress> getBindAddresses() {
+		return this.bindAddresses;
 	}
 
 	public int getBacklog() {

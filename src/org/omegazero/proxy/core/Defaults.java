@@ -38,12 +38,12 @@ class Defaults {
 		Consumer<Runnable> serverTaskHandler = null; // change to proxy worker when synchronization issues are resolved (is that ever going to happen?)
 		if(config.getPortsPlain().size() > 0)
 			proxy.registerServerInstance(
-					new PlainTCPServer(config.getBindAddress(), config.getPortsPlain(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout()));
+					new PlainTCPServer(config.getBindAddresses(), config.getPortsPlain(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout()));
 		if(config.getPortsTls().size() > 0){
 			List<Object> alpnNames = proxy.dispatchEventRes(new Event("_proxyRegisterALPNOption", false, new Class<?>[0], String.class, true)).getReturnValues();
 			alpnNames.add("http/1.1");
 			logger.debug("Registered TLS ALPN options: ", alpnNames);
-			TLSServer tlsServer = new TLSServer(config.getBindAddress(), config.getPortsTls(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout(),
+			TLSServer tlsServer = new TLSServer(config.getBindAddresses(), config.getPortsTls(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout(),
 					proxy.getSslContext());
 			tlsServer.setSupportedApplicationLayerProtocols(alpnNames.toArray(new String[alpnNames.size()]));
 			proxy.registerServerInstance(tlsServer);

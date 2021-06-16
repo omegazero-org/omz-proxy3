@@ -45,7 +45,7 @@ The JSON root element must be an object and can have any of the following proper
 
 | Name | Type | Description | Required | Default value |
 | --- | --- | --- | --- | --- |
-| bindAddress | string | The local address to bind to. | no | null |
+| bindAddresses | array(string) | A list of local addresses to bind to. A single element of `null` indicates that the system should choose a default address. | no | [null] |
 | backlog | number | The connection backlog. 0 to let the system choose a default value. | no | 0 |
 | portsPlain | array(number) | The list of ports to accept plaintext connections on. | no | `empty` |
 | portsTls | array(number) | The list of ports to accept SSL/TLS-encrypted connections on. | no | `empty` |
