@@ -155,6 +155,11 @@ class ProxyKeyManager extends X509ExtendedKeyManager {
 					break;
 				}
 
+				if(this.getExternalEntry(servername, keyType)){
+					available = servername;
+					break;
+				}
+
 				// no direct mapping found, try with higher level names (ie select 'example.com' for sni name 'subdomain.example.com' and cache it if found)
 				String c = servername;
 				int di;
