@@ -373,6 +373,8 @@ public class HTTP1 implements HTTPEngine {
 				return null;
 			authStart += 3;
 			int pathStart = requestURI.indexOf('/', authStart);
+			if(pathStart < 0)
+				return null;
 			host = requestURI.substring(authStart, pathStart);
 			requestURI = requestURI.substring(pathStart);
 		}
