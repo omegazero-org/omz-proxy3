@@ -43,8 +43,12 @@ public class HTTPMessage implements Serializable {
 	private final Map<String, String> headerFields;
 	private byte[] data;
 
+	private String origMethod;
+	private String origScheme;
 	private String origAuthority;
 	private String origPath;
+	private int origStatus;
+	private String origVersion;
 
 	private HTTPMessage correspondingMessage;
 
@@ -78,6 +82,9 @@ public class HTTPMessage implements Serializable {
 		this(false, headers);
 		this.status = status;
 		this.version = version;
+
+		this.origStatus = status;
+		this.origVersion = version;
 	}
 
 	/**
@@ -104,8 +111,11 @@ public class HTTPMessage implements Serializable {
 		this.path = path;
 		this.version = version;
 
+		this.origMethod = method;
+		this.origScheme = scheme;
 		this.origAuthority = authority;
 		this.origPath = path;
+		this.origVersion = version;
 	}
 
 
@@ -151,6 +161,16 @@ public class HTTPMessage implements Serializable {
 	}
 
 	@SideOnly(side = SideOnly.Side.REQUEST)
+	public void setMethod(String method) {
+		this.method = method;
+	}
+
+	@SideOnly(side = SideOnly.Side.REQUEST)
+	public void setScheme(String scheme) {
+		this.scheme = scheme;
+	}
+
+	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setAuthority(String authority) {
 		this.authority = authority;
 	}
@@ -160,13 +180,44 @@ public class HTTPMessage implements Serializable {
 		this.path = path;
 	}
 
+	@SideOnly(side = SideOnly.Side.RESPONSE)
+	public void setStatus(int status) {
+		this.status = status;
+	}
+
+	public void setVersion(String version) {
+		this.version = version;
+	}
+
+	@SideOnly(side = SideOnly.Side.REQUEST)
+	public String getOrigMethod() {
+		return this.origMethod;
+	}
+
+	@SideOnly(side = SideOnly.Side.REQUEST)
+	public String getOrigScheme() {
+		return this.origScheme;
+	}
+
+	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigAuthority() {
 		return this.origAuthority;
 	}
 
+	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigPath() {
 		return this.origPath;
 	}
+
+	@SideOnly(side = SideOnly.Side.RESPONSE)
+	public int getOrigStatus() {
+		return this.origStatus;
+	}
+
+	public String getOrigVersion() {
+		return this.origVersion;
+	}
+
 
 	/**
 	 * 
@@ -370,8 +421,12 @@ public class HTTPMessage implements Serializable {
 		c.version = this.version;
 		c.headerFields.putAll(this.headerFields);
 		c.data = this.data;
+		c.origMethod = this.origMethod;
+		c.origScheme = this.origScheme;
 		c.origAuthority = this.origAuthority;
 		c.origPath = this.origPath;
+		c.origStatus = this.origStatus;
+		c.origVersion = this.origVersion;
 		c.correspondingMessage = this.correspondingMessage;
 		c.requestId = this.requestId;
 		c.engine = this.engine;
