@@ -456,6 +456,7 @@ public class HTTP1 implements HTTPEngine {
 			sb.append(msg.getVersion() + ' ' + msg.getStatus());
 		}
 		sb.append("\r\n");
+		msg.setHeader("host", msg.getAuthority());
 		for(Entry<String, String> header : msg.getHeaderSet()){
 			sb.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
 		}
