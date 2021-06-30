@@ -326,7 +326,9 @@ public class HTTP1 implements HTTPEngine {
 					HTTPMessageData hmd = new HTTPMessageData(response, d);
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, HTTP1.this.downstreamConnection, uconn, hmd, userver);
 					ProxyUtil.handleBackpressure(HTTP1.this.downstreamConnection, uconn);
-					HTTP1.this.downstreamConnection.write(hmd.getData());
+					byte[] data = hmd.getData();
+					if(data != null && data.length > 0)
+						HTTP1.this.downstreamConnection.write(data);
 				}else{
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, req, d);
 					if(HTTP1.this.hasReceivedResponse())
@@ -462,6 +464,8 @@ public class HTTP1 implements HTTPEngine {
 		}
 		sb.append("\r\n");
 		conn.write(sb.toString().getBytes());
-		conn.write(msg.getData());
+		byte[] data = msg.getData();
+		if(data != null && data.length > 0)
+			conn.write(data);
 	}
 }
