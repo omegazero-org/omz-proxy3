@@ -57,6 +57,8 @@ public class HTTPMessage implements Serializable {
 
 	private int size;
 
+	private Map<String, Object> attachments = null;
+
 	private HTTPMessage(boolean request, Map<String, String> headers) {
 		this.request = request;
 		if(headers == null)
@@ -343,6 +345,36 @@ public class HTTPMessage implements Serializable {
 
 	public void setSize(int size) {
 		this.size = size;
+	}
+
+
+	/**
+	 * Sets an object that is bound to this <code>HTTPMessage</code> identified by the given <b>key</b>. This may be used by applications to store message-exchange-specific
+	 * data in an otherwise stateless environment.<br>
+	 * <br>
+	 * Values stored here have no meaning in HTTP and are purely intended to store metadata used by the application.
+	 * 
+	 * @param key   The string identifying the given <b>value</b> in this <code>HTTPMessage</code> object. Plugins are recommended to prepend the key with their respective
+	 *              plugin IDs, followed by an underscore, to prevent conflicts
+	 * @param value The value to be stored in this <code>HTTPMessage</code> object
+	 */
+	public void setAttachment(String key, Object value) {
+		if(this.attachments == null)
+			this.attachments = new HashMap<>();
+		this.attachments.put(key, value);
+	}
+
+	/**
+	 * Retrieves an attachment previously set by {@link #setAttachment(String, Object)}.
+	 * 
+	 * @param key The key of the attachment to return
+	 * @return The value of the attachment, or <code>null</code> if no attachment with the given <b>key</b> exists
+	 */
+	public Object getAttachment(String key) {
+		if(this.attachments == null)
+			return null;
+		else
+			return this.attachments.get(key);
 	}
 
 
