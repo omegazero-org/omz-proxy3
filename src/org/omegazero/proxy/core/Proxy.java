@@ -65,6 +65,8 @@ public final class Proxy {
 
 	private State state = State.NEW;
 
+	private Path configFile;
+	private long configLastModified = 0;
 	private ProxyConfiguration config;
 	private String instanceType = "proxy";
 	private String instanceVersion = Proxy.VERSION;
@@ -76,6 +78,7 @@ public final class Proxy {
 
 	private ProxyKeyManager keyManager;
 	private SSLContext sslContext;
+	private long tlsDataReloadInterval = -1;
 
 	private EventQueueExecutor serverWorker;
 	private ApplicationWorkerProvider serverWorkerProvider;
@@ -107,7 +110,25 @@ public final class Proxy {
 		}else{
 			String configFile = args.getValueOrDefault("configFile", "config.json");
 			logger.info("Loading configuration '", configFile, "'");
-			this.loadConfiguration(configFile);
+			Path filePath = Paths.get(configFile).toAbsolutePath();
+			this.loadConfiguration(filePath);
+			this.configFile = filePath;
+			if(args.getBooleanOrDefault("configFileReload", false)){
+				java.io.File configF = filePath.toFile();
+				this.configLastModified = configF.lastModified();
+				Tasks.interval((a) -> {
+					long lm = configF.lastModified();
+					if(lm > Proxy.this.configLastModified){
+						Proxy.this.configLastModified = lm;
+						try{
+							logger.info("Configuration file was modified, reloading");
+							Proxy.this.reloadConfiguration();
+						}catch(Exception e){
+							logger.warn("Error while reloading configuration: ", e.toString());
+						}
+					}
+				}, 5000).daemon();
+			}
 		}
 		this.config.validateConfig();
 
@@ -153,23 +174,26 @@ public final class Proxy {
 	}
 
 
-	private void loadConfiguration(String file) throws IOException {
-		this.loadConfiguration(Files.readAllBytes(Paths.get(file)));
+	private void loadConfiguration(Path filePath) throws IOException {
+		this.loadConfiguration(Files.readAllBytes(filePath));
 	}
 
 	private void loadConfiguration(byte[] data) throws IOException {
-		this.config = new ProxyConfiguration(data);
-		this.config.load();
+		ProxyConfiguration config = new ProxyConfiguration(data);
+		config.load();
+		this.config = config;
 
+		if(this.tlsDataReloadInterval >= 0)
+			Tasks.clear(this.tlsDataReloadInterval);
 		if(this.config.getTlsAuthReloadInterval() > 0){
-			Tasks.interval((args) -> {
+			this.tlsDataReloadInterval = Tasks.interval((args) -> {
 				try{
 					Proxy.this.config.reloadTLSAuthData();
 					Proxy.this.keyManager.tlsDataReload();
 				}catch(Exception e){
 					logger.error("Error while reloading TLS auth data: ", e);
 				}
-			}, this.config.getTlsAuthReloadInterval() * 1000).daemon();
+			}, this.config.getTlsAuthReloadInterval() * 1000).daemon().getId();
 		}
 
 		if(this.config.getUpstreamServerAddress() != null)
@@ -192,17 +216,8 @@ public final class Proxy {
 
 		String[] pluginNames = new String[this.pluginManager.pluginCount()];
 		int pluginIndex = 0;
+		this.pushPluginConfig();
 		for(Plugin p : this.pluginManager){
-			try{
-				java.lang.reflect.Method configMethod = p.getMainClassType().getDeclaredMethod("configurationReload", ConfigObject.class);
-				configMethod.setAccessible(true);
-				configMethod.invoke(p.getMainClassInstance(), Proxy.this.config.getPluginConfigFor(p.getId()));
-			}catch(java.lang.reflect.InvocationTargetException e){
-				throw new RuntimeException("Error in config reload method of plugin '" + p.getName() + "'", e);
-			}catch(ReflectiveOperationException e){
-				logger.warn("Error while attempting to call config reload method of plugin '" + p.getName() + "': ", e.toString());
-			}
-
 			try{
 				logger.debug("Registering plugin class with event bus: ", p.getMainClassType().getName());
 				String eventsList = p.getAdditionalOption("events");
@@ -211,7 +226,7 @@ public final class Proxy {
 					events = eventsList.split(",");
 				else
 					events = new String[0];
-				Proxy.this.proxyEventBus.register(p.getMainClassInstance(), events);
+				this.proxyEventBus.register(p.getMainClassInstance(), events);
 			}catch(Exception e){
 				logger.error("Error while registering plugin '" + p.getName() + "': ", e);
 			}
@@ -222,6 +237,20 @@ public final class Proxy {
 				pluginNames[pluginIndex++] = p.getId();
 		}
 		logger.info("Loaded ", pluginNames.length, " plugins: ", java.util.Arrays.toString(pluginNames));
+	}
+
+	private void pushPluginConfig() {
+		for(Plugin p : this.pluginManager){
+			try{
+				java.lang.reflect.Method configMethod = p.getMainClassType().getDeclaredMethod("configurationReload", ConfigObject.class);
+				configMethod.setAccessible(true);
+				configMethod.invoke(p.getMainClassInstance(), this.config.getPluginConfigFor(p.getId()));
+			}catch(java.lang.reflect.InvocationTargetException e){
+				throw new RuntimeException("Error in config reload method of plugin '" + p.getName() + "'", e);
+			}catch(ReflectiveOperationException e){
+				logger.warn("Error while attempting to call config reload method of plugin '" + p.getName() + "': ", e.toString());
+			}
+		}
 	}
 
 	private void loadSSLContext() {
@@ -413,6 +442,22 @@ public final class Proxy {
 				throw new RuntimeException("Error while processing data", e);
 			}
 		});
+	}
+
+
+	/**
+	 * Reloads the configuration from the configuration file and pushes the new configuration data to plugins.<br>
+	 * <br>
+	 * If no configuration file was used, this method does nothing.
+	 * 
+	 * @throws IOException
+	 */
+	public void reloadConfiguration() throws IOException {
+		if(this.configFile == null)
+			return;
+		this.loadConfiguration(this.configFile);
+		this.keyManager.tlsDataReload();
+		this.pushPluginConfig();
 	}
 
 

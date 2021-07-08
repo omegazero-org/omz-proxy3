@@ -27,6 +27,7 @@ The following command line options are available:
 | config | string | The content of the configuration file, if a file cannot be used. If this is provided, `configFile` is ignored. | no | null |
 | pluginDir | string | The directory or directories where plugins should be loaded from. Multiple directories are separated by two colons (`::`). | no | "plugins" |
 | dirPlugins | boolean | If plugins should be able to be loaded from directories instead of JAR files. | no | false |
+| configFileReload | boolean | Reload the configuration file after it has been modified. This option has no effect when no configuration file is used. | no | false |
 | exitOnDoubleFault | boolean | (advanced) If the JVM should be terminated if an exception is thrown in the uncaught exception handler. This should only be set to `false` for debugging. | no | true |
 
 ### Example
