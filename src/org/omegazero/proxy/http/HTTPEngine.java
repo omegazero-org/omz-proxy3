@@ -34,7 +34,7 @@ public interface HTTPEngine {
 	 */
 	public SocketConnection getDownstreamConnection();
 
-	public void respond(HTTPMessage request, HTTPMessage response);
+	public void respond(HTTPMessage request, HTTPMessageData response);
 
 	public void respond(HTTPMessage request, int status, byte[] data, String... headers);
 

@@ -127,6 +127,8 @@ public final class HTTPCommon {
 			return UPSTREAM_CONNECT_ERROR_MESSAGE + ": " + e.getMessage();
 		else if(e instanceof java.net.SocketException)
 			return UPSTREAM_ERROR_MESSAGE + ": " + e.getMessage();
+		else if(e instanceof InvalidHTTPMessageException)
+			return "Invalid HTTP response from upstream server";
 		else if(e instanceof java.io.IOException)
 			return UPSTREAM_ERROR_MESSAGE + ": Socket error";
 		else

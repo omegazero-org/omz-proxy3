@@ -34,10 +34,13 @@ public final class ProxyEvents {
 	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+	public static final Event HTTP_REQUEST_ENDED = new Event("onHTTPRequestEnded", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE = new Event("onHTTPResponse",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_DATA = new Event("onHTTPResponseData",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+	public static final Event HTTP_RESPONSE_ENDED = new Event("onHTTPResponseEnded",
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);
 	public static final Event UPSTREAM_CONNECTION_PERMITTED = new Event("isUpstreamConnectionPermitted", false, new Class<?>[] { HTTPMessage.class, UpstreamServer.class },
 			Boolean.class, true);

@@ -16,6 +16,7 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.function.Consumer;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
@@ -33,6 +34,7 @@ import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.HTTPMessageData;
+import org.omegazero.proxy.http.InvalidHTTPMessageException;
 import org.omegazero.proxy.net.UpstreamServer;
 import org.omegazero.proxy.util.ArrayUtil;
 import org.omegazero.proxy.util.ProxyUtil;
@@ -43,6 +45,9 @@ public class HTTP1 implements HTTPEngine {
 
 	private static final byte[] HTTP1_HEADER_END = new byte[] { 0x0d, 0x0a, 0x0d, 0x0a };
 	private static final String[] HTTP1_ALPN = new String[] { "http/1.1" };
+
+	private static final byte[] EOL = new byte[] { 0xd, 0xa };
+	private static final byte[] EMPTY_CHUNK = new byte[] { '0', 0xd, 0xa, 0xd, 0xa };
 
 
 	private final SocketConnection downstreamConnection;
@@ -96,11 +101,11 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 	@Override
-	public void respond(HTTPMessage request, HTTPMessage response) {
+	public void respond(HTTPMessage request, HTTPMessageData response) {
 		if(request != null){
 			if(request.getCorrespondingMessage() != null) // received response already
 				return;
-			request.setCorrespondingMessage(response);
+			request.setCorrespondingMessage(response.getHttpMessage());
 		}
 		HTTP1.writeHTTPMsg(this.downstreamConnection, response);
 	}
@@ -155,17 +160,18 @@ public class HTTP1 implements HTTPEngine {
 		response.setHeader("x-proxy-engine", this.getClass().getSimpleName());
 		if(request != null)
 			response.setHeader("x-request-id", request.getRequestId());
-		response.setData(data);
 		if(request != null)
 			request.setCorrespondingMessage(response);
-		HTTP1.writeHTTPMsg(this.downstreamConnection, response);
+		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
 
 
 	// called in synchronized context
 	private void processPacket(byte[] data) {
-		HTTPMessage request = this.parseHTTPRequest(data);
-		if(request != null){
+		HTTPMessageData requestdata = this.parseHTTPRequest(data);
+		HTTPMessage request = null;
+		if(requestdata != null){
+			request = requestdata.getHttpMessage();
 			this.lastRequest = request;
 			request.setRequestId(HTTPCommon.requestId(this.downstreamConnection));
 			if(this.proxy.enableHeaders()){
@@ -205,7 +211,7 @@ public class HTTP1 implements HTTPEngine {
 			if(this.hasReceivedResponse())
 				return;
 			logger.info(this.downstreamConnectionDbgstr, " Invalid Request");
-			this.respondError(request, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "The proxy server did not understand the request");
+			this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "The proxy server did not understand the request");
 			return;
 		}
 		SocketConnection uconn = null;
@@ -213,15 +219,29 @@ public class HTTP1 implements HTTPEngine {
 			if((uconn = this.connectUpstream(userver)) == null)
 				return;
 		}
-		if(request != null){
+		if(requestdata != null){
+			boolean wasChunked = request.isChunkedTransfer();
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, request, userver);
-
-			HTTP1.writeHTTPMsg(uconn, request);
+			try{
+				MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, request, HTTP1.this.downstreamConnection, uconn, (hmd) -> {
+					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_DATA, this.downstreamConnection, hmd, userver);
+				}, (msg) -> {
+					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, msg, userver);
+				});
+				HTTP1.writeHTTPMsg(uconn, request, null);
+				dc.addData(requestdata.getData());
+			}catch(IOException | UnsupportedOperationException e){
+				logger.warn("Error while processing request body chunk: ", e.toString());
+				this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "Malformed request body");
+			}
 		}else{
-			HTTPMessageData hmd = new HTTPMessageData(this.lastRequest, data);
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_DATA, this.downstreamConnection, hmd, userver);
-			ProxyUtil.handleBackpressure(uconn, this.downstreamConnection);
-			uconn.write(hmd.getData());
+			MessageBodyDechunker dechunker = (MessageBodyDechunker) this.lastRequest.getAttachment("engine_dechunker");
+			try{
+				dechunker.addData(data);
+			}catch(IOException e){
+				logger.warn("Error while processing request body chunk: ", e.toString());
+				this.downstreamConnection.close();
+			}
 		}
 	}
 
@@ -286,10 +306,17 @@ public class HTTP1 implements HTTPEngine {
 			logger.debug(uconn.getAttachment(), " Disconnected");
 			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 
-			if(userver.equals(HTTP1.this.lastUpstreamServer) && HTTP1.this.lastRequest.getCorrespondingMessage() == null && !HTTP1.this.downstreamClosed){
-				// did not receive a response
-				logger.error(uconn.getAttachment(), " Connection closed unexpectedly");
-				this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly");
+			if(userver.equals(HTTP1.this.lastUpstreamServer) && !HTTP1.this.downstreamClosed){
+				HTTPMessage response = HTTP1.this.lastRequest.getCorrespondingMessage();
+				if(response == null){
+					// did not receive a response
+					logger.error(uconn.getAttachment(), " Connection closed unexpectedly");
+					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly");
+				}else{
+					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
+					if(dechunker != null) // may be null if respond() was used
+						dechunker.end();
+				}
 			}
 
 			HTTP1.this.upstreamConnections.remove(userver, uconn);
@@ -299,9 +326,11 @@ public class HTTP1 implements HTTPEngine {
 				logger.warn(uconn.getAttachment(), " Received unexpected data");
 				return;
 			}
-			HTTPMessage response = HTTP1.this.parseHTTPResponse(d);
 			HTTPMessage req = HTTP1.this.lastRequest;
-			if(response != null){
+			HTTPMessageData responsedata = HTTP1.this.parseHTTPResponse(d);
+			final HTTPMessage response;
+			if(responsedata != null){
+				response = responsedata.getHttpMessage();
 				response.setRequestId(req.getRequestId());
 				if(HTTP1.this.proxy.enableHeaders()){
 					if(!response.headerExists("date"))
@@ -312,29 +341,33 @@ public class HTTP1 implements HTTPEngine {
 				req.setCorrespondingMessage(response);
 
 				try{
+					boolean wasChunked = response.isChunkedTransfer();
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
+					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
+						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
+					}, (msg) -> {
+						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
+						if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
+							HTTP1.this.downstreamConnection.close();
+					});
+					HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null);
+					dc.addData(responsedata.getData());
 				}catch(Exception e){
 					// reset setCorrespondingMessage to enable respondError in the onError callback to write the 500 response
 					req.setCorrespondingMessage(null);
 					throw e;
 				}
-
-				HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response);
 			}else{
 				response = HTTP1.this.lastRequest.getCorrespondingMessage();
 				if(response != null){
-					HTTPMessageData hmd = new HTTPMessageData(response, d);
-					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, HTTP1.this.downstreamConnection, uconn, hmd, userver);
-					ProxyUtil.handleBackpressure(HTTP1.this.downstreamConnection, uconn);
-					byte[] data = hmd.getData();
-					if(data != null && data.length > 0)
-						HTTP1.this.downstreamConnection.write(data);
+					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
+					dechunker.addData(d);
 				}else{
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, req, d);
 					if(HTTP1.this.hasReceivedResponse())
 						return;
 					logger.warn(uconn.getAttachment(), " Invalid response");
-					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "The upstream server did not send a valid response");
+					throw new InvalidHTTPMessageException();
 				}
 			}
 		});
@@ -343,13 +376,45 @@ public class HTTP1 implements HTTPEngine {
 		return uconn;
 	}
 
+	private MessageBodyDechunker handleHTTPMessage(boolean wasChunked, HTTPMessage msg, SocketConnection sourceConnection, SocketConnection targetConnection,
+			Consumer<HTTPMessageData> onMsgData, Consumer<HTTPMessage> onFinished) throws IOException {
+		MessageBodyDechunker dechunker = new MessageBodyDechunker(msg, (data) -> {
+			if(data.length > 0){
+				HTTPMessageData hmd = new HTTPMessageData(msg, data);
+				onMsgData.accept(hmd);
+				data = hmd.getData();
+				if(data == null || data.length <= 0)
+					return;
+				ProxyUtil.handleBackpressure(targetConnection, sourceConnection);
+				if(msg.isChunkedTransfer())
+					targetConnection.write(toChunk(data));
+				else{
+					targetConnection.write(data);
+				}
+			}else{
+				if(msg.isChunkedTransfer())
+					targetConnection.write(EMPTY_CHUNK);
+				onFinished.accept(msg);
+			}
+		});
+		msg.setAttachment("engine_dechunker", dechunker);
+		if(wasChunked && !msg.isChunkedTransfer())
+			throw new IllegalStateException("Cannot unchunkify a response body");
+		else if(!wasChunked && msg.isChunkedTransfer()){
+			msg.deleteHeader("content-length");
+			msg.setHeader("transfer-encoding", "chunked");
+		}
+		msg.lock();
+		return dechunker;
+	}
+
 
 	private boolean hasReceivedResponse() {
 		return this.lastRequest != null && this.lastRequest.getCorrespondingMessage() != null;
 	}
 
 
-	private HTTPMessage parseHTTPRequest(byte[] data) {
+	private HTTPMessageData parseHTTPRequest(byte[] data) {
 		if(data[0] < 'A' || data[0] > 'Z')
 			return null;
 
@@ -402,18 +467,11 @@ public class HTTP1 implements HTTPEngine {
 		}
 
 		HTTPMessage msg = new HTTPMessage(startLine[0], this.downstreamSecurity ? "https" : "http", host, requestURI, startLine[2], headers);
-		msg.setEngine(this);
-		msg.setSize(headerEnd);
 
-		int edataStart = headerEnd + HTTP1_HEADER_END.length;
-		int edataLen = data.length - edataStart;
-		byte[] edata = new byte[edataLen];
-		System.arraycopy(data, edataStart, edata, 0, edataLen);
-		msg.setData(edata);
-		return msg;
+		return this.parseHTTPCommon(msg, data, headerEnd);
 	}
 
-	private HTTPMessage parseHTTPResponse(byte[] data) {
+	private HTTPMessageData parseHTTPResponse(byte[] data) {
 		if(data[0] != 'H')
 			return null;
 
@@ -430,7 +488,6 @@ public class HTTP1 implements HTTPEngine {
 			return null;
 
 		HTTPMessage msg = new HTTPMessage(Integer.parseInt(startLine[1]), startLine[0]);
-		msg.setEngine(this);
 		String[] headerLines = headerData.substring(startLineEnd + 2).split("\r\n");
 		for(String headerLine : headerLines){
 			int sep = headerLine.indexOf(':');
@@ -439,18 +496,44 @@ public class HTTP1 implements HTTPEngine {
 			msg.setHeader(headerLine.substring(0, sep).trim().toLowerCase(), headerLine.substring(sep + 1).trim());
 		}
 
+		return this.parseHTTPCommon(msg, data, headerEnd);
+	}
+
+	private HTTPMessageData parseHTTPCommon(HTTPMessage msg, byte[] data, int headerEnd) {
+		msg.setEngine(this);
 		msg.setSize(headerEnd);
+
+		msg.setChunkedTransfer("chunked".equals(msg.getHeader("transfer-encoding")));
 
 		int edataStart = headerEnd + HTTP1_HEADER_END.length;
 		int edataLen = data.length - edataStart;
 		byte[] edata = new byte[edataLen];
 		System.arraycopy(data, edataStart, edata, 0, edataLen);
-		msg.setData(edata);
-		return msg;
+		return new HTTPMessageData(msg, edata);
 	}
 
 
-	private static void writeHTTPMsg(SocketConnection conn, HTTPMessage msg) {
+	private static byte[] toChunk(byte[] data) {
+		byte[] hexlen = Integer.toString(data.length, 16).getBytes();
+		int chunkFrameSize = data.length + hexlen.length + EOL.length * 2;
+		byte[] chunk = new byte[chunkFrameSize];
+		int i = 0;
+		System.arraycopy(hexlen, 0, chunk, i, hexlen.length);
+		i += hexlen.length;
+		System.arraycopy(EOL, 0, chunk, i, EOL.length);
+		i += EOL.length;
+		System.arraycopy(data, 0, chunk, i, data.length);
+		i += data.length;
+		System.arraycopy(EOL, 0, chunk, i, EOL.length);
+		i += EOL.length;
+		return chunk;
+	}
+
+	private static void writeHTTPMsg(SocketConnection conn, HTTPMessageData msgdata) {
+		HTTP1.writeHTTPMsg(conn, msgdata.getHttpMessage(), msgdata.getData());
+	}
+
+	private static void writeHTTPMsg(SocketConnection conn, HTTPMessage msg, byte[] data) {
 		StringBuilder sb = new StringBuilder(msg.getSize());
 		if(msg.isRequest()){
 			sb.append(msg.getMethod() + ' ' + msg.getPath() + ' ' + msg.getVersion());
@@ -458,13 +541,14 @@ public class HTTP1 implements HTTPEngine {
 			sb.append(msg.getVersion() + ' ' + msg.getStatus());
 		}
 		sb.append("\r\n");
-		msg.setHeader("host", msg.getAuthority());
 		for(Entry<String, String> header : msg.getHeaderSet()){
-			sb.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+			if(header.getKey().equals("host"))
+				sb.append("host: ").append(msg.getAuthority()).append("\r\n");
+			else
+				sb.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
 		}
 		sb.append("\r\n");
 		conn.write(sb.toString().getBytes());
-		byte[] data = msg.getData();
 		if(data != null && data.length > 0)
 			conn.write(data);
 	}

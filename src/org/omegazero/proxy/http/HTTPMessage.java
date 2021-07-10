@@ -41,7 +41,7 @@ public class HTTPMessage implements Serializable {
 	private int status;
 	private String version;
 	private final Map<String, String> headerFields;
-	private byte[] data;
+	private boolean chunkedTransfer;
 
 	private String origMethod;
 	private String origScheme;
@@ -53,11 +53,13 @@ public class HTTPMessage implements Serializable {
 	private HTTPMessage correspondingMessage;
 
 	private String requestId;
-	private HTTPEngine engine;
+	private transient HTTPEngine engine;
 
 	private int size;
 
 	private Map<String, Object> attachments = null;
+
+	private transient boolean locked = false;
 
 	private HTTPMessage(boolean request, Map<String, String> headers) {
 		this.request = request;
@@ -164,30 +166,36 @@ public class HTTPMessage implements Serializable {
 
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setMethod(String method) {
+		this.checkLocked();
 		this.method = method;
 	}
 
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setScheme(String scheme) {
+		this.checkLocked();
 		this.scheme = scheme;
 	}
 
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setAuthority(String authority) {
+		this.checkLocked();
 		this.authority = authority;
 	}
 
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setPath(String path) {
+		this.checkLocked();
 		this.path = path;
 	}
 
 	@SideOnly(side = SideOnly.Side.RESPONSE)
 	public void setStatus(int status) {
+		this.checkLocked();
 		this.status = status;
 	}
 
 	public void setVersion(String version) {
+		this.checkLocked();
 		this.version = version;
 	}
 
@@ -249,6 +257,7 @@ public class HTTPMessage implements Serializable {
 	 * @param value The value of this header field. If <code>null</code>, the header will be deleted
 	 */
 	public void setHeader(String key, String value) {
+		this.checkLocked();
 		Objects.requireNonNull(key);
 		if(value == null)
 			this.headerFields.remove(key);
@@ -265,6 +274,7 @@ public class HTTPMessage implements Serializable {
 	 * @param separator The separator between the existing value and the new value
 	 */
 	public void appendHeader(String key, String value, String separator) {
+		this.checkLocked();
 		Objects.requireNonNull(key);
 		String val = this.getHeader(key);
 		val = ((val != null) ? (val + Objects.requireNonNull(separator)) : "") + Objects.requireNonNull(value);
@@ -295,12 +305,18 @@ public class HTTPMessage implements Serializable {
 		return this.headerFields.entrySet();
 	}
 
-	public byte[] getData() {
-		return this.data;
+	public boolean isChunkedTransfer() {
+		return this.chunkedTransfer;
 	}
 
-	public void setData(byte[] data) {
-		this.data = data;
+	public void setChunkedTransfer(boolean chunkedTransfer) {
+		this.checkLocked();
+		this.chunkedTransfer = chunkedTransfer;
+	}
+
+	@Deprecated
+	public byte[] getData() {
+		return new byte[0];
 	}
 
 
@@ -327,6 +343,7 @@ public class HTTPMessage implements Serializable {
 	 * @param requestId The request ID
 	 */
 	public void setRequestId(String requestId) {
+		this.checkLocked();
 		this.requestId = Objects.requireNonNull(requestId);
 	}
 
@@ -335,6 +352,7 @@ public class HTTPMessage implements Serializable {
 	}
 
 	public void setEngine(HTTPEngine engine) {
+		this.checkLocked();
 		this.engine = engine;
 	}
 
@@ -344,6 +362,7 @@ public class HTTPMessage implements Serializable {
 	}
 
 	public void setSize(int size) {
+		this.checkLocked();
 		this.size = size;
 	}
 
@@ -375,6 +394,16 @@ public class HTTPMessage implements Serializable {
 			return null;
 		else
 			return this.attachments.get(key);
+	}
+
+
+	public void lock() {
+		this.locked = true;
+	}
+
+	protected void checkLocked() {
+		if(this.locked)
+			throw new IllegalStateException("HTTPMessage object is locked may no longer be modified");
 	}
 
 
@@ -452,7 +481,6 @@ public class HTTPMessage implements Serializable {
 		c.status = this.status;
 		c.version = this.version;
 		c.headerFields.putAll(this.headerFields);
-		c.data = this.data;
 		c.origMethod = this.origMethod;
 		c.origScheme = this.origScheme;
 		c.origAuthority = this.origAuthority;
@@ -463,6 +491,9 @@ public class HTTPMessage implements Serializable {
 		c.requestId = this.requestId;
 		c.engine = this.engine;
 		c.size = this.size;
+		if(this.attachments != null)
+			c.attachments = new HashMap<>(this.attachments);
+		c.chunkedTransfer = this.chunkedTransfer;
 		return c;
 	}
 

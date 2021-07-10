@@ -11,33 +11,22 @@
  */
 package org.omegazero.proxy.http;
 
-import java.io.Serializable;
+import java.io.IOException;
 
-public class HTTPMessageData implements Serializable {
+public class InvalidHTTPMessageException extends IOException {
 
 	private static final long serialVersionUID = 1L;
 
-	private final HTTPMessage httpMessage;
 
-	private byte[] data;
-
-	public HTTPMessageData(HTTPMessage httpMessage, byte[] data) {
-		this.httpMessage = httpMessage;
-		this.data = data;
+	public InvalidHTTPMessageException() {
+		super();
 	}
 
-
-	public byte[] getData() {
-		return this.data;
+	public InvalidHTTPMessageException(String msg) {
+		super(msg);
 	}
 
-	public void setData(byte[] data) {
-		if(!this.httpMessage.isChunkedTransfer() && this.data.length != data.length)
-			throw new UnsupportedOperationException("HTTP message body chunk size must be the same size if transfer is not chunked");
-		this.data = data;
-	}
-
-	public HTTPMessage getHttpMessage() {
-		return this.httpMessage;
+	public InvalidHTTPMessageException(String msg, Throwable cause) {
+		super(msg, cause);
 	}
 }
