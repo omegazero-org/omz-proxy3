@@ -81,6 +81,7 @@ public class HTTPMessage implements Serializable {
 	 * 
 	 * @param status  The status in the response
 	 * @param version The HTTP version
+	 * @param headers The HTTP headers
 	 */
 	public HTTPMessage(int status, String version, Map<String, String> headers) {
 		this(false, headers);
@@ -106,6 +107,7 @@ public class HTTPMessage implements Serializable {
 	 * @param authority The URL authority or, if not provided, the value of the "Host" header (e.g. "example.com")
 	 * @param path      The requested path or URL
 	 * @param version   The HTTP version
+	 * @param headers   The HTTP headers
 	 */
 	public HTTPMessage(String method, String scheme, String authority, String path, String version, Map<String, String> headers) {
 		this(true, headers);
@@ -305,10 +307,21 @@ public class HTTPMessage implements Serializable {
 		return this.headerFields.entrySet();
 	}
 
+	/**
+	 * 
+	 * @return Whether the message body is chunked, as set by {@link #setChunkedTransfer(boolean)} or by the application that created this <code>HTTPMessage</code> object
+	 */
 	public boolean isChunkedTransfer() {
 		return this.chunkedTransfer;
 	}
 
+	/**
+	 * Sets whether the body of this message should be transferred in chunks or as one piece with a predetermined size.<br>
+	 * <br>
+	 * If this is <code>false</code>, the length of the data set using {@link HTTPMessageData#setData(byte[])} must be the same as the original length.
+	 * 
+	 * @param chunkedTransfer
+	 */
 	public void setChunkedTransfer(boolean chunkedTransfer) {
 		this.checkLocked();
 		this.chunkedTransfer = chunkedTransfer;
@@ -469,7 +482,7 @@ public class HTTPMessage implements Serializable {
 	/**
 	 * Creates a mostly shallow copy of this <code>HTTPMessage</code> object.<br>
 	 * <br>
-	 * {@link HTTPMessage#headerFields} is the only object where a new instance is created.
+	 * {@link #headerFields} and {@link #attachments} are the only objects where a new instance is created.
 	 */
 	@Override
 	public synchronized HTTPMessage clone() {
