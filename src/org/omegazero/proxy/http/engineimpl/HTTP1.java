@@ -385,19 +385,19 @@ public class HTTP1 implements HTTPEngine {
 	private MessageBodyDechunker handleHTTPMessage(boolean wasChunked, HTTPMessage msg, SocketConnection sourceConnection, SocketConnection targetConnection,
 			Consumer<HTTPMessageData> onMsgData, Consumer<HTTPMessage> onFinished) throws IOException {
 		MessageBodyDechunker dechunker = new MessageBodyDechunker(msg, (data) -> {
-			if(data.length > 0){
-				HTTPMessageData hmd = new HTTPMessageData(msg, data);
-				onMsgData.accept(hmd);
-				data = hmd.getData();
-				if(data == null || data.length <= 0)
-					return;
+			boolean last = data.length == 0;
+			HTTPMessageData hmd = new HTTPMessageData(msg, last, data);
+			onMsgData.accept(hmd);
+			data = hmd.getData();
+			if(data != null && data.length > 0){
 				ProxyUtil.handleBackpressure(targetConnection, sourceConnection);
 				if(msg.isChunkedTransfer())
 					targetConnection.write(toChunk(data));
 				else{
 					targetConnection.write(data);
 				}
-			}else{
+			}
+			if(last){
 				if(msg.isChunkedTransfer())
 					targetConnection.write(EMPTY_CHUNK);
 				onFinished.accept(msg);

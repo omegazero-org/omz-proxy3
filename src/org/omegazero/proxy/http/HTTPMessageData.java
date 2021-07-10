@@ -18,17 +18,27 @@ public class HTTPMessageData implements Serializable {
 	private static final long serialVersionUID = 1L;
 
 	private final HTTPMessage httpMessage;
+	private final boolean lastPacket;
 
 	private byte[] data;
 
 	public HTTPMessageData(HTTPMessage httpMessage, byte[] data) {
+		this(httpMessage, false, data);
+	}
+
+	public HTTPMessageData(HTTPMessage httpMessage, boolean lastPacket, byte[] data) {
 		this.httpMessage = httpMessage;
+		this.lastPacket = lastPacket;
 		this.data = data;
 	}
 
 
 	public byte[] getData() {
 		return this.data;
+	}
+
+	public boolean isLastPacket() {
+		return this.lastPacket;
 	}
 
 	public void setData(byte[] data) {
