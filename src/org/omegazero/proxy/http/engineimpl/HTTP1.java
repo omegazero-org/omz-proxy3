@@ -101,13 +101,19 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 	@Override
-	public void respond(HTTPMessage request, HTTPMessageData response) {
+	public void respond(HTTPMessage request, HTTPMessageData responsedata) {
+		HTTPMessage response = responsedata.getHttpMessage().clone();
+		byte[] data = responsedata.getData();
 		if(request != null){
-			if(request.getCorrespondingMessage() != null) // received response already
-				return;
-			request.setCorrespondingMessage(response.getHttpMessage());
+			synchronized(request){
+				if(request.getCorrespondingMessage() != null) // received response already
+					return;
+				request.setCorrespondingMessage(response);
+			}
 		}
-		HTTP1.writeHTTPMsg(this.downstreamConnection, response);
+		response.deleteHeader("transfer-encoding");
+		response.setHeader("content-length", String.valueOf(data.length));
+		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
 
 	@Override
@@ -527,10 +533,6 @@ public class HTTP1 implements HTTPEngine {
 		System.arraycopy(EOL, 0, chunk, i, EOL.length);
 		i += EOL.length;
 		return chunk;
-	}
-
-	private static void writeHTTPMsg(SocketConnection conn, HTTPMessageData msgdata) {
-		HTTP1.writeHTTPMsg(conn, msgdata.getHttpMessage(), msgdata.getData());
 	}
 
 	private static void writeHTTPMsg(SocketConnection conn, HTTPMessage msg, byte[] data) {
