@@ -234,8 +234,8 @@ public class HTTP1 implements HTTPEngine {
 				}, (msg) -> {
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, msg, userver);
 				});
-				HTTP1.writeHTTPMsg(uconn, request, null);
-				dc.addData(requestdata.getData());
+				if(HTTP1.writeHTTPMsg(uconn, request, null))
+					dc.addData(requestdata.getData());
 			}catch(IOException | UnsupportedOperationException e){
 				logger.warn("Error while processing request body chunk: ", e.toString());
 				this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "Malformed request body");
@@ -356,8 +356,8 @@ public class HTTP1 implements HTTPEngine {
 						if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
 							HTTP1.this.downstreamConnection.close();
 					});
-					HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null);
-					dc.addData(responsedata.getData());
+					if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
+						dc.addData(responsedata.getData());
 				}catch(Exception e){
 					// reset setCorrespondingMessage to enable respondError in the onError callback to write the 500 response
 					req.setCorrespondingMessage(null);
@@ -535,7 +535,15 @@ public class HTTP1 implements HTTPEngine {
 		return chunk;
 	}
 
-	private static void writeHTTPMsg(SocketConnection conn, HTTPMessage msg, byte[] data) {
+	private static boolean writeHTTPMsg(SocketConnection conn, HTTPMessage msg, byte[] data) {
+		if(!conn.isWritable()){
+			// the socket should always be writable before sending a HTTP message over it under normal circumstances
+			// if this is not checked, it may cause a CWE-400 vulnerability if an attacker continuously causes messages to be generated, but never receiving them,
+			// eventually causing the write buffer to use all available resources
+			logger.warn("Tried to write HTTP message on blocked socket; destroying socket [DoS mitigation]");
+			conn.destroy();
+			return false;
+		}
 		StringBuilder sb = new StringBuilder(msg.getSize());
 		if(msg.isRequest()){
 			sb.append(msg.getMethod() + ' ' + msg.getPath() + ' ' + msg.getVersion());
@@ -553,5 +561,6 @@ public class HTTP1 implements HTTPEngine {
 		conn.write(sb.toString().getBytes());
 		if(data != null && data.length > 0)
 			conn.write(data);
+		return true;
 	}
 }
