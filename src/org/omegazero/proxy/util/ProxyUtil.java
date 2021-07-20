@@ -100,9 +100,9 @@ public class ProxyUtil {
 
 
 	/**
-	 * Checks if the <b>writeStream</b> (the connection where data is being written to) is buffering write calls ({@link SocketConnection#isWritable()} returns
-	 * <code>false</code>). If that is the case, reads from the <b>readStream</b> will be blocked using {@link SocketConnection#setReadBlock(boolean)} until the
-	 * <b>writeStream</b> is writable again.<br>
+	 * Checks if the <b>writeStream</b> (the connection where data is being written to) is connected (or about to be) and is buffering write calls
+	 * ({@link SocketConnection#isWritable()} returns <code>false</code>). If that is the case, reads from the <b>readStream</b> will be blocked using
+	 * {@link SocketConnection#setReadBlock(boolean)} until the <b>writeStream</b> is writable again.<br>
 	 * <br>
 	 * This method uses the <code>onWrite</code> callback of the <code>SocketConnection</code>, which should not be used when this function is in use.
 	 * 
@@ -110,7 +110,7 @@ public class ProxyUtil {
 	 * @param readStream  The connection where reads should be blocked until <b>writeStream</b> is writable again
 	 */
 	public static void handleBackpressure(SocketConnection writeStream, SocketConnection readStream) {
-		if(!writeStream.isWritable()){
+		if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
 			readStream.setReadBlock(true);
 			writeStream.setOnWritable(() -> {
 				readStream.setReadBlock(false);

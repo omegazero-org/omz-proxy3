@@ -104,15 +104,9 @@ public class HTTP1 implements HTTPEngine {
 	public void respond(HTTPMessage request, HTTPMessageData responsedata) {
 		HTTPMessage response = responsedata.getHttpMessage().clone();
 		byte[] data = responsedata.getData();
-		if(request != null){
-			synchronized(request){
-				if(request.getCorrespondingMessage() != null) // received response already
-					return;
-				request.setCorrespondingMessage(response);
-			}
-		}
-		response.deleteHeader("transfer-encoding");
-		response.setHeader("content-length", String.valueOf(data.length));
+		if(!setRequestResponse(request, response))
+			return;
+		data = fixHTTPResponse(request, response, data);
 		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
 
@@ -156,8 +150,9 @@ public class HTTP1 implements HTTPEngine {
 		for(int i = 0; i + 1 < h1.length; i += 2){
 			response.setHeader(h1[i], h1[i + 1]);
 		}
-		if(!response.headerExists("content-length"))
-			response.setHeader("content-length", String.valueOf(data.length));
+
+		data = fixHTTPResponse(request, response, data);
+
 		if(!response.headerExists("date"))
 			response.setHeader("date", HTTPCommon.dateString());
 		if(!response.headerExists("connection"))
@@ -166,8 +161,8 @@ public class HTTP1 implements HTTPEngine {
 		response.setHeader("x-proxy-engine", this.getClass().getSimpleName());
 		if(request != null)
 			response.setHeader("x-request-id", request.getRequestId());
-		if(request != null)
-			request.setCorrespondingMessage(response);
+		if(!setRequestResponse(request, response))
+			return;
 		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
 
@@ -324,9 +319,12 @@ public class HTTP1 implements HTTPEngine {
 		});
 		uconn.setOnClose(() -> {
 			logger.debug(uconn.getAttachment(), " Disconnected");
+			if(HTTP1.this.downstreamConnection.isConnected())
+				HTTP1.this.downstreamConnection.setReadBlock(false); // release backpressure
 			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 
 			if(userver.equals(HTTP1.this.lastUpstreamServer) && !HTTP1.this.downstreamClosed){
+				HTTP1.this.lastUpstreamServer = null;
 				HTTPMessage response = HTTP1.this.lastRequest.getCorrespondingMessage();
 				if(response == null){
 					// did not receive a response
@@ -334,8 +332,13 @@ public class HTTP1 implements HTTPEngine {
 					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly");
 				}else{
 					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
-					if(dechunker != null) // may be null if respond() was used
-						dechunker.end();
+					if(dechunker != null){ // may be null if respond() was used
+						if(!dechunker.hasReceivedAllData()){
+							logger.warn("Closing downstream connection because upstream connection closed before all data was received");
+							HTTP1.this.downstreamConnection.close();
+						}else
+							dechunker.end();
+					}
 				}
 			}
 
@@ -436,6 +439,7 @@ public class HTTP1 implements HTTPEngine {
 			msg.setHeader("transfer-encoding", "chunked");
 		}
 		msg.lock();
+		ProxyUtil.handleBackpressure(targetConnection, sourceConnection);
 		return dechunker;
 	}
 
@@ -544,6 +548,32 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 
+	private static boolean setRequestResponse(HTTPMessage request, HTTPMessage response) {
+		if(request != null){
+			synchronized(request){
+				if(request.getCorrespondingMessage() != null) // received response already
+					return false;
+				request.setCorrespondingMessage(response);
+			}
+		}
+		return true;
+	}
+
+	private static byte[] fixHTTPResponse(HTTPMessage request, HTTPMessage response, byte[] data) {
+		response.deleteHeader("transfer-encoding");
+		if(MessageBodyDechunker.hasResponseBody(response.getStatus())){
+			if(request != null && request.getMethod().equals("HEAD")){
+				if(data.length > 0)
+					data = new byte[0];
+			}else
+				response.setHeader("content-length", String.valueOf(data.length));
+		}else if(data.length > 0)
+			throw new IllegalStateException("Response with status " + response.getStatus() + " must not have a response body");
+		else
+			response.deleteHeader("content-length");
+		return data;
+	}
+
 	private static byte[] toChunk(byte[] data) {
 		byte[] hexlen = Integer.toString(data.length, 16).getBytes();
 		int chunkFrameSize = data.length + hexlen.length + EOL.length * 2;
@@ -561,10 +591,11 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 	private static boolean writeHTTPMsg(SocketConnection conn, HTTPMessage msg, byte[] data) {
-		if(!conn.isWritable()){
+		if(conn.isConnected() && !conn.isWritable()){
 			// the socket should always be writable before sending a HTTP message over it under normal circumstances
 			// if this is not checked, it may cause a CWE-400 vulnerability if an attacker continuously causes messages to be generated, but never receiving them,
 			// eventually causing the write buffer to use all available resources
+			// need to check for isConnected because this may be called before the socket is actually connected (isWritable may return false then)
 			logger.warn("Tried to write HTTP message on blocked socket; destroying socket [DoS mitigation]");
 			conn.destroy();
 			return false;

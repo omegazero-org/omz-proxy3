@@ -46,7 +46,7 @@ public class MessageBodyDechunker {
 		String transferEncoding = msg.getHeader("transfer-encoding");
 		String contentLength = msg.getHeader("content-length");
 		// rfc 7230 section 3.3.3
-		if(requestMsg.getMethod().equals("HEAD") || (!request && !hasResponseBody(msg.getStatus()))){
+		if(!request && !hasResponseBody(requestMsg, msg)){
 			this.totalSize = 0;
 			this.chunkBuffer = null;
 		}else if("chunked".equals(transferEncoding)){
@@ -61,6 +61,8 @@ public class MessageBodyDechunker {
 			}catch(NumberFormatException e){
 				throw new InvalidHTTPMessageException("Invalid Content-Length header value");
 			}
+			if(ts < 0)
+				throw new InvalidHTTPMessageException("Content-Length is negative");
 			this.totalSize = ts;
 			this.chunkBuffer = null;
 		}else if(request){
@@ -70,10 +72,6 @@ public class MessageBodyDechunker {
 			this.totalSize = -1;
 			this.chunkBuffer = null;
 		}
-	}
-
-	private static boolean hasResponseBody(int status) {
-		return !((status >= 100 && status <= 199) || status == 204 || status == 304);
 	}
 
 
@@ -169,7 +167,25 @@ public class MessageBodyDechunker {
 			this.newData(new byte[0]);
 	}
 
+	public boolean hasReceivedAllData() {
+		return this.totalSize < 0 || this.receivedData >= this.totalSize;
+	}
+
 	public boolean hasEnded() {
 		return this.ended;
+	}
+
+
+	public static boolean hasResponseBody(int status) {
+		return !((status >= 100 && status <= 199) || status == 204 || status == 304);
+	}
+
+	public static boolean hasResponseBody(HTTPMessage request, HTTPMessage response) {
+		if(request.getMethod().equals("HEAD"))
+			return false;
+		int status = response.getStatus();
+		if(request.getMethod().equals("CONNECT") && status >= 200 && status <= 299)
+			return false;
+		return hasResponseBody(response.getStatus());
 	}
 }
