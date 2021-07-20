@@ -174,8 +174,11 @@ public class HTTP1 implements HTTPEngine {
 
 	// called in synchronized context
 	private void processPacket(byte[] data) {
+		if(this.forwardUnknownProtocolPacket(data))
+			return;
+
 		HTTPMessageData requestdata = this.parseHTTPRequest(data);
-		HTTPMessage request = null;
+		HTTPMessage request = this.lastRequest;
 		if(requestdata != null){
 			request = requestdata.getHttpMessage();
 			this.lastRequest = request;
@@ -241,7 +244,7 @@ public class HTTP1 implements HTTPEngine {
 				this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "Malformed request body");
 			}
 		}else{
-			MessageBodyDechunker dechunker = (MessageBodyDechunker) this.lastRequest.getAttachment("engine_dechunker");
+			MessageBodyDechunker dechunker = (MessageBodyDechunker) request.getAttachment("engine_dechunker");
 			try{
 				dechunker.addData(data);
 			}catch(IOException e){
@@ -249,6 +252,17 @@ public class HTTP1 implements HTTPEngine {
 				this.downstreamConnection.close();
 			}
 		}
+	}
+
+	private boolean forwardUnknownProtocolPacket(byte[] data) {
+		HTTPMessage request = this.lastRequest;
+		if(request == null || request.getAttachment("engine_otherProtocol") == null || this.lastUpstreamServer == null)
+			return false;
+		SocketConnection uconn = this.upstreamConnections.get(this.lastUpstreamServer);
+		if(uconn == null)
+			return false;
+		uconn.write(data);
+		return true;
 	}
 
 	// called in synchronized context
@@ -332,7 +346,13 @@ public class HTTP1 implements HTTPEngine {
 				logger.warn(uconn.getAttachment(), " Received unexpected data");
 				return;
 			}
+
 			HTTPMessage req = HTTP1.this.lastRequest;
+			if(req.getAttachment("engine_otherProtocol") != null){
+				HTTP1.this.downstreamConnection.write(d);
+				return;
+			}
+
 			HTTPMessageData responsedata = HTTP1.this.parseHTTPResponse(d);
 			final HTTPMessage response;
 			if(responsedata != null){
@@ -349,22 +369,27 @@ public class HTTP1 implements HTTPEngine {
 				try{
 					boolean wasChunked = response.isChunkedTransfer();
 					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
-					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
-						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
-					}, (msg) -> {
-						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
-						if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
-							HTTP1.this.downstreamConnection.close();
-					});
-					if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
-						dc.addData(responsedata.getData());
+					if(response.getStatus() == HTTPCommon.STATUS_SWITCHING_PROTOCOLS){
+						req.setAttachment("engine_otherProtocol", 1);
+						HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, responsedata.getData());
+					}else{
+						MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
+							HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
+						}, (msg) -> {
+							HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
+							if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
+								HTTP1.this.downstreamConnection.close();
+						});
+						if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
+							dc.addData(responsedata.getData());
+					}
 				}catch(Exception e){
 					// reset setCorrespondingMessage to enable respondError in the onError callback to write the 500 response
 					req.setCorrespondingMessage(null);
 					throw e;
 				}
 			}else{
-				response = HTTP1.this.lastRequest.getCorrespondingMessage();
+				response = req.getCorrespondingMessage();
 				if(response != null){
 					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
 					dechunker.addData(d);
