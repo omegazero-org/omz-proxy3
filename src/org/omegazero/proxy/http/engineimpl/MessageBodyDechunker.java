@@ -15,9 +15,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.function.Consumer;
 
+import org.omegazero.common.util.ArrayUtil;
 import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.InvalidHTTPMessageException;
-import org.omegazero.proxy.util.ArrayUtil;
 
 public class MessageBodyDechunker {
 

@@ -20,6 +20,7 @@ import java.util.function.Consumer;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
+import org.omegazero.common.util.ArrayUtil;
 import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.client.PlainTCPClientManager;
 import org.omegazero.net.client.TLSClientManager;
@@ -36,7 +37,6 @@ import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.HTTPMessageData;
 import org.omegazero.proxy.http.InvalidHTTPMessageException;
 import org.omegazero.proxy.net.UpstreamServer;
-import org.omegazero.proxy.util.ArrayUtil;
 import org.omegazero.proxy.util.ProxyUtil;
 
 public class HTTP1 implements HTTPEngine {
