@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.function.Consumer;
+import java.util.regex.Pattern;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
@@ -48,6 +49,10 @@ public class HTTP1 implements HTTPEngine {
 
 	private static final byte[] EOL = new byte[] { 0xd, 0xa };
 	private static final byte[] EMPTY_CHUNK = new byte[] { '0', 0xd, 0xa, 0xd, 0xa };
+
+	private static final Pattern PATTERN_REQUEST_METHOD = Pattern.compile("[A-Z]{2,10}");
+	private static final Pattern PATTERN_REPONSE_STATUS = Pattern.compile("[0-9]{2,4}");
+	private static final Pattern PATTERN_HTTP_VERSION = Pattern.compile("HTTP/1\\.[01]");
 
 
 	private final SocketConnection downstreamConnection;
@@ -207,7 +212,8 @@ public class HTTP1 implements HTTPEngine {
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request, this.lastUpstreamServer);
 			if(this.hasReceivedResponse())
 				return;
-		}
+		}else if(this.hasReceivedResponse()) // this packet is not a new request, but remaining body data from the previous request; sent response for that request already
+			return;
 
 		UpstreamServer userver = this.lastUpstreamServer;
 		if(userver == null){ // here: implies request is null (invalid)
@@ -249,15 +255,71 @@ public class HTTP1 implements HTTPEngine {
 		}
 	}
 
-	private boolean forwardUnknownProtocolPacket(byte[] data) {
-		HTTPMessage request = this.lastRequest;
-		if(request == null || request.getAttachment("engine_otherProtocol") == null || this.lastUpstreamServer == null)
-			return false;
-		SocketConnection uconn = this.upstreamConnections.get(this.lastUpstreamServer);
-		if(uconn == null)
-			return false;
-		uconn.write(data);
-		return true;
+	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, SocketConnection uconn) throws IOException {
+		if(!userver.equals(HTTP1.this.lastUpstreamServer)){
+			logger.warn(uconn.getAttachment(), " Received unexpected data");
+			return null;
+		}
+
+		HTTPMessage req = HTTP1.this.lastRequest;
+		if(req.getAttachment("engine_otherProtocol") != null){
+			HTTP1.this.downstreamConnection.write(data);
+			return null;
+		}
+
+		HTTPMessageData responsedata = HTTP1.this.parseHTTPResponse(data);
+		final HTTPMessage response;
+		if(responsedata != null){
+			response = responsedata.getHttpMessage();
+			response.setRequestId(req.getRequestId());
+			if(HTTP1.this.proxy.enableHeaders()){
+				if(!response.headerExists("date"))
+					response.setHeader("Date", HTTPCommon.dateString());
+				HTTPCommon.setDefaultHeaders(HTTP1.this.proxy, response);
+			}
+			response.setCorrespondingMessage(req);
+			req.setCorrespondingMessage(response);
+
+			try{
+				boolean wasChunked = response.isChunkedTransfer();
+				HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
+				if(response.getStatus() == HTTPCommon.STATUS_SWITCHING_PROTOCOLS){
+					req.setAttachment("engine_otherProtocol", 1);
+					HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, responsedata.getData());
+					return responsedata.getData();
+				}else if(response.isIntermediateMessage()){
+					req.setCorrespondingMessage(null); // this is not the final response
+					return responsedata.getData();
+				}else{
+					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
+						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
+					}, (msg) -> {
+						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
+						if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
+							HTTP1.this.downstreamConnection.close();
+					});
+					if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
+						dc.addData(responsedata.getData());
+				}
+			}catch(Exception e){
+				// reset setCorrespondingMessage to enable respondError in the onError callback to write the 500 response
+				req.setCorrespondingMessage(null);
+				throw e;
+			}
+		}else{
+			response = req.getCorrespondingMessage();
+			if(response != null){
+				MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
+				dechunker.addData(data);
+			}else{
+				HTTP1.this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, req, data);
+				if(HTTP1.this.hasReceivedResponse())
+					return null;
+				logger.warn(uconn.getAttachment(), " Invalid response");
+				throw new InvalidHTTPMessageException();
+			}
+		}
+		return null;
 	}
 
 	// called in synchronized context
@@ -345,69 +407,24 @@ public class HTTP1 implements HTTPEngine {
 			HTTP1.this.upstreamConnections.remove(userver, uconn);
 		});
 		uconn.setOnData((d) -> {
-			if(!userver.equals(HTTP1.this.lastUpstreamServer)){
-				logger.warn(uconn.getAttachment(), " Received unexpected data");
-				return;
-			}
-
-			HTTPMessage req = HTTP1.this.lastRequest;
-			if(req.getAttachment("engine_otherProtocol") != null){
-				HTTP1.this.downstreamConnection.write(d);
-				return;
-			}
-
-			HTTPMessageData responsedata = HTTP1.this.parseHTTPResponse(d);
-			final HTTPMessage response;
-			if(responsedata != null){
-				response = responsedata.getHttpMessage();
-				response.setRequestId(req.getRequestId());
-				if(HTTP1.this.proxy.enableHeaders()){
-					if(!response.headerExists("date"))
-						response.setHeader("Date", HTTPCommon.dateString());
-					HTTPCommon.setDefaultHeaders(HTTP1.this.proxy, response);
-				}
-				response.setCorrespondingMessage(req);
-				req.setCorrespondingMessage(response);
-
-				try{
-					boolean wasChunked = response.isChunkedTransfer();
-					HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
-					if(response.getStatus() == HTTPCommon.STATUS_SWITCHING_PROTOCOLS){
-						req.setAttachment("engine_otherProtocol", 1);
-						HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, responsedata.getData());
-					}else{
-						MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
-							HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
-						}, (msg) -> {
-							HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
-							if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
-								HTTP1.this.downstreamConnection.close();
-						});
-						if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
-							dc.addData(responsedata.getData());
-					}
-				}catch(Exception e){
-					// reset setCorrespondingMessage to enable respondError in the onError callback to write the 500 response
-					req.setCorrespondingMessage(null);
-					throw e;
-				}
-			}else{
-				response = req.getCorrespondingMessage();
-				if(response != null){
-					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
-					dechunker.addData(d);
-				}else{
-					HTTP1.this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, req, d);
-					if(HTTP1.this.hasReceivedResponse())
-						return;
-					logger.warn(uconn.getAttachment(), " Invalid response");
-					throw new InvalidHTTPMessageException();
-				}
-			}
+			do{
+				d = HTTP1.this.processResponsePacket(d, userver, uconn);
+			}while(d != null && d.length > 0);
 		});
 		uconn.connect(this.proxy.getUpstreamConnectionTimeout());
 		this.upstreamConnections.put(userver, uconn);
 		return uconn;
+	}
+
+	private boolean forwardUnknownProtocolPacket(byte[] data) {
+		HTTPMessage request = this.lastRequest;
+		if(request == null || request.getAttachment("engine_otherProtocol") == null || this.lastUpstreamServer == null)
+			return false;
+		SocketConnection uconn = this.upstreamConnections.get(this.lastUpstreamServer);
+		if(uconn == null)
+			return false;
+		uconn.write(data);
+		return true;
 	}
 
 	private MessageBodyDechunker handleHTTPMessage(boolean wasChunked, HTTPMessage msg, SocketConnection sourceConnection, SocketConnection targetConnection,
@@ -464,7 +481,7 @@ public class HTTP1 implements HTTPEngine {
 		if(startLineEnd < 0)
 			return null;
 		String[] startLine = headerData.substring(0, startLineEnd).split(" ");
-		if(!(startLine.length == 3 && startLine[0].matches("[A-Z]{2,10}") && startLine[2].matches("HTTP/1\\.[01]")))
+		if(!(startLine.length == 3 && PATTERN_REQUEST_METHOD.matcher(startLine[0]).matches() && PATTERN_HTTP_VERSION.matcher(startLine[2]).matches()))
 			return null;
 		String requestURI = startLine[1];
 		String host = null;
@@ -517,13 +534,13 @@ public class HTTP1 implements HTTPEngine {
 		String headerData = new String(data, 0, headerEnd);
 		int startLineEnd = headerData.indexOf("\r\n");
 		if(startLineEnd < 0)
-			return null;
+			startLineEnd = headerEnd;
 		String[] startLine = headerData.substring(0, startLineEnd).split(" ");
-		if(!(startLine.length >= 2 && startLine[0].matches("HTTP/1\\.[01]") && startLine[1].matches("[0-9]{2,4}")))
+		if(!(startLine.length >= 2 && PATTERN_HTTP_VERSION.matcher(startLine[0]).matches() && PATTERN_REPONSE_STATUS.matcher(startLine[1]).matches()))
 			return null;
 
 		HTTPMessage msg = new HTTPMessage(Integer.parseInt(startLine[1]), startLine[0]);
-		String[] headerLines = headerData.substring(startLineEnd + 2).split("\r\n");
+		String[] headerLines = startLineEnd + 2 < headerData.length() ? headerData.substring(startLineEnd + 2).split("\r\n") : new String[0];
 		for(String headerLine : headerLines){
 			int sep = headerLine.indexOf(':');
 			if(sep < 0)

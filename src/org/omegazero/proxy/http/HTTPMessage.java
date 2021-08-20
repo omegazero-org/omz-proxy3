@@ -480,6 +480,19 @@ public class HTTPMessage implements Serializable {
 
 
 	/**
+	 * Determines whether this <code>HTTPMessage</code> is an intermediate message, meaning it is followed up by another <code>HTTPMessage</code> to complete the HTTP exchange
+	 * or it has some other special meaning.<br>
+	 * This applies to responses with 1xx response codes.
+	 * 
+	 * @return <code>true</code> if this <code>HTTPMessage</code> is an intermediate message
+	 * @since 3.2.2
+	 */
+	public boolean isIntermediateMessage() {
+		return !this.request && this.status >= 100 && this.status <= 199;
+	}
+
+
+	/**
 	 * Creates a mostly shallow copy of this <code>HTTPMessage</code> object.<br>
 	 * <br>
 	 * {@link #headerFields} and {@link #attachments} are the only objects where a new instance is created.
