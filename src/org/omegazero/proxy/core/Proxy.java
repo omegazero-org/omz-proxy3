@@ -55,7 +55,7 @@ public final class Proxy {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	public static final String VERSION = "3.2.1";
+	public static final String VERSION = "3.2.2";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
 
