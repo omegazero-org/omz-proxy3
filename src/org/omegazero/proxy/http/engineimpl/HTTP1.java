@@ -401,6 +401,8 @@ public class HTTP1 implements HTTPEngine {
 						}else
 							dechunker.end();
 					}
+					if(HTTP1.this.lastRequest.getAttachment("engine_otherProtocol") != null)
+						HTTP1.this.downstreamConnection.close();
 				}
 			}
 
