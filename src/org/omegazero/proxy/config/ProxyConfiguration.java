@@ -21,13 +21,13 @@ import java.security.cert.X509Certificate;
 import java.util.AbstractMap.SimpleEntry;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.omegazero.common.config.ConfigObject;
 import org.omegazero.common.config.ConfigurationOption;
 import org.omegazero.common.config.JSONConfiguration;
 import org.omegazero.common.logging.Logger;
@@ -152,7 +152,7 @@ public class ProxyConfiguration extends JSONConfiguration {
 			if(jsonObject instanceof JSONObject){
 				JSONObject j = ((JSONObject) jsonObject);
 				for(String k : j.keySet()){
-					this.pluginConfig.put(k, ProxyConfiguration.convertJSONObject(j.getJSONObject(k)));
+					this.pluginConfig.put(k, convertJSONObject(j.getJSONObject(k)));
 				}
 			}else
 				throw new IllegalArgumentException("'pluginConfig' must be an object");
@@ -251,29 +251,5 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public boolean isDisableDefaultRequestLog() {
 		return this.disableDefaultRequestLog;
-	}
-
-	private static ConfigObject convertJSONObject(JSONObject json) {
-		ConfigObject obj = new ConfigObject();
-		for(String k : json.keySet()){
-			obj.data.put(k, ProxyConfiguration.convertJSONValue(json.get(k)));
-		}
-		return obj;
-	}
-
-	private static Object convertJSONValue(Object v) {
-		if(v instanceof JSONObject){
-			return ProxyConfiguration.convertJSONObject((JSONObject) v);
-		}else if(v instanceof JSONArray){
-			JSONArray arr = ((JSONArray) v);
-			ConfigArray carr = new ConfigArray(arr.length());
-			Iterator<Object> data = arr.iterator();
-			while(data.hasNext())
-				carr.data.add(ProxyConfiguration.convertJSONValue(data.next()));
-			return carr;
-		}else if(v == JSONObject.NULL)
-			return null;
-		else
-			return v;
 	}
 }

@@ -30,6 +30,7 @@ import java.util.function.Function;
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
+import org.omegazero.common.config.ConfigObject;
 import org.omegazero.common.event.EventQueueExecutor;
 import org.omegazero.common.event.Tasks;
 import org.omegazero.common.eventbus.Event;
@@ -45,7 +46,6 @@ import org.omegazero.net.client.params.ConnectionParameters;
 import org.omegazero.net.common.NetworkApplication;
 import org.omegazero.net.server.NetServer;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.proxy.config.ConfigObject;
 import org.omegazero.proxy.config.ProxyConfiguration;
 import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
@@ -55,7 +55,7 @@ public final class Proxy {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	public static final String VERSION = "3.2.2";
+	public static final String VERSION = "3.2.3";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
 
