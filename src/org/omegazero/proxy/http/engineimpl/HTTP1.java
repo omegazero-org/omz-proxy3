@@ -144,7 +144,7 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 
-	private synchronized void respondEx(HTTPMessage request, int status, byte[] data, String[] h1, String... hEx) {
+	private void respondEx(HTTPMessage request, int status, byte[] data, String[] h1, String... hEx) {
 		if(request != null && request.getCorrespondingMessage() != null) // received response already
 			return;
 		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", status);
@@ -196,14 +196,14 @@ public class HTTP1 implements HTTPEngine {
 
 			String hostname = request.getAuthority();
 			if(hostname == null){
-				logger.info(this.downstreamConnectionDbgstr, " No Host header");
+				logger.debug(this.downstreamConnectionDbgstr, " No Host header");
 				this.respondError(request, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "Missing Host header");
 				return;
 			}
 
 			this.lastUpstreamServer = this.proxy.getUpstreamServer(hostname, request.getPath());
 			if(this.lastUpstreamServer == null){
-				logger.info(this.downstreamConnectionDbgstr, " No upstream server found");
+				logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 				this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);
 				this.respondError(request, HTTPCommon.STATUS_NOT_FOUND, "Not Found", "No appropriate upstream server was found for this request");
 				return;
@@ -220,7 +220,7 @@ public class HTTP1 implements HTTPEngine {
 			this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_REQUEST, this.downstreamConnection, data);
 			if(this.hasReceivedResponse())
 				return;
-			logger.info(this.downstreamConnectionDbgstr, " Invalid Request");
+			logger.debug(this.downstreamConnectionDbgstr, " Invalid Request");
 			this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "The proxy server did not understand the request");
 			return;
 		}
@@ -285,6 +285,7 @@ public class HTTP1 implements HTTPEngine {
 				HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
 				if(response.getStatus() == HTTPCommon.STATUS_SWITCHING_PROTOCOLS){
 					req.setAttachment("engine_otherProtocol", 1);
+					logger.debug(uconn.getAttachment(), " Protocol changed");
 					HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, responsedata.getData());
 					return responsedata.getData();
 				}else if(response.isIntermediateMessage()){
@@ -396,7 +397,7 @@ public class HTTP1 implements HTTPEngine {
 					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
 					if(dechunker != null){ // may be null if respond() was used
 						if(!dechunker.hasReceivedAllData()){
-							logger.warn("Closing downstream connection because upstream connection closed before all data was received");
+							logger.warn(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
 							HTTP1.this.downstreamConnection.close();
 						}else
 							dechunker.end();
@@ -621,9 +622,9 @@ public class HTTP1 implements HTTPEngine {
 		}
 		StringBuilder sb = new StringBuilder(msg.getSize());
 		if(msg.isRequest()){
-			sb.append(msg.getMethod() + ' ' + msg.getPath() + ' ' + msg.getVersion());
+			sb.append(msg.getMethod()).append(' ').append(msg.getPath()).append(' ').append(msg.getVersion());
 		}else{
-			sb.append(msg.getVersion() + ' ' + msg.getStatus());
+			sb.append(msg.getVersion()).append(' ').append(msg.getStatus());
 		}
 		sb.append("\r\n");
 		for(Entry<String, String> header : msg.getHeaderSet()){
