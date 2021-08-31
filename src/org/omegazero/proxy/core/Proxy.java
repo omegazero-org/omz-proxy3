@@ -635,8 +635,40 @@ public final class Proxy {
 		return errdoc;
 	}
 
+	/**
+	 * 
+	 * @return The default {@link HTTPErrdoc}. This is guaranteed to be non-<code>null</code>
+	 */
 	public HTTPErrdoc getDefaultErrdoc() {
 		return this.errdocDefault;
+	}
+
+	/**
+	 * Parses the given value of an <code>Accept</code> HTTP header and returns the {@link HTTPErrdoc} for the first content type in the header for which an errdoc is found.
+	 * If no overlap is found, or the header does not exist (the given value is <code>null</code>), the default errdoc is returned.
+	 * 
+	 * @param accept The value of an <code>Accept</code> HTTP header
+	 * @return A suitable <code>HTTPErrdoc</code>, or the default errdoc if none was found
+	 * @since 3.3.1
+	 * @see #getErrdoc(String)
+	 * @see #getDefaultErrdoc()
+	 */
+	public HTTPErrdoc getErrdocForAccept(String accept) {
+		HTTPErrdoc errdoc = null;
+		if(accept != null){
+			String[] acceptParts = accept.split(",");
+			for(String ap : acceptParts){
+				int pe = ap.indexOf(';');
+				if(pe >= 0)
+					ap = ap.substring(0, pe);
+				errdoc = this.errdocs.get(ap.trim());
+				if(errdoc != null)
+					break;
+			}
+		}
+		if(errdoc == null)
+			errdoc = this.getDefaultErrdoc();
+		return errdoc;
 	}
 
 	/**
@@ -718,7 +750,10 @@ public final class Proxy {
 	}
 
 
-	private class ApplicationWorkerProvider implements Consumer<Runnable> {
+	public class ApplicationWorkerProvider implements Consumer<Runnable> {
+
+		private ApplicationWorkerProvider() {
+		}
 
 		@Override
 		public void accept(Runnable t) {

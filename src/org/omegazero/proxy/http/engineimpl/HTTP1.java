@@ -124,18 +124,7 @@ public class HTTP1 implements HTTPEngine {
 		if(request != null && request.getCorrespondingMessage() != null)
 			return;
 		String accept = request != null ? request.getHeader("accept") : null;
-		String[] acceptParts = accept != null ? accept.split(",") : new String[0];
-		HTTPErrdoc errdoc = null;
-		for(String ap : acceptParts){
-			int pe = ap.indexOf(';');
-			if(pe >= 0)
-				ap = ap.substring(0, pe);
-			errdoc = this.proxy.getErrdoc(ap.trim());
-			if(errdoc != null)
-				break;
-		}
-		if(errdoc == null)
-			errdoc = this.proxy.getDefaultErrdoc();
+		HTTPErrdoc errdoc = this.proxy.getErrdocForAccept(accept);
 		byte[] errdocData = errdoc
 				.generate(status, title, message, request != null ? request.getHeader("x-request-id") : null, this.downstreamConnection.getApparentRemoteAddress().toString())
 				.getBytes();
