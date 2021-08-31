@@ -491,6 +491,51 @@ public class HTTPMessage implements Serializable {
 		return !this.request && this.status >= 100 && this.status <= 199;
 	}
 
+	/**
+	 * 
+	 * @return <code>true</code> if this <code>HTTPMessage</code> is a request that has received a response already
+	 * @since 3.3.1
+	 */
+	public boolean hasResponse() {
+		return this.request && this.getCorrespondingMessage() != null;
+	}
+
+
+	/**
+	 * 
+	 * @param response The response
+	 * @since 3.3.1
+	 * @see HTTPEngine#respond(HTTPMessage, HTTPMessageData)
+	 */
+	public void respond(HTTPMessageData response) {
+		this.getEngine().respond(this, response);
+	}
+
+	/**
+	 * 
+	 * @param status  The status code of the response
+	 * @param data    The data to send in the response
+	 * @param headers Headers to send in the response. See {@link HTTPEngine#respond(HTTPMessage, int, byte[], String...)} for more information
+	 * @since 3.3.1
+	 * @see HTTPEngine#respond(HTTPMessage, int, byte[], String...)
+	 */
+	public void respond(int status, byte[] data, String... headers) {
+		this.getEngine().respond(this, status, data, headers);
+	}
+
+	/**
+	 * 
+	 * @param status  The status code of the response
+	 * @param title   Title of the error message
+	 * @param message Error message
+	 * @param headers Headers to send in the response. See {@link HTTPEngine#respond(HTTPMessage, int, byte[], String...)} for more information
+	 * @since 3.3.1
+	 * @see HTTPEngine#respondError(HTTPMessage, int, String, String, String...)
+	 */
+	public void respondError(int status, String title, String message, String... headers) {
+		this.getEngine().respondError(this, status, title, message, headers);
+	}
+
 
 	/**
 	 * Creates a mostly shallow copy of this <code>HTTPMessage</code> object.<br>
