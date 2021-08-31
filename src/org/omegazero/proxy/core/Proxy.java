@@ -46,6 +46,7 @@ import org.omegazero.net.client.params.ConnectionParameters;
 import org.omegazero.net.common.NetworkApplication;
 import org.omegazero.net.server.NetServer;
 import org.omegazero.net.socket.SocketConnection;
+import org.omegazero.proxy.config.HTTPEngineConfig;
 import org.omegazero.proxy.config.ProxyConfiguration;
 import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
@@ -55,7 +56,7 @@ public final class Proxy {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	public static final String VERSION = "3.2.3";
+	public static final String VERSION = "3.3.1";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
 
@@ -407,8 +408,8 @@ public final class Proxy {
 	private HTTPEngine createHTTPEngineInstance(Class<? extends HTTPEngine> engineType, SocketConnection downstreamConnection) {
 		HTTPEngine engine = null;
 		try{
-			java.lang.reflect.Constructor<? extends HTTPEngine> cons = engineType.getConstructor(SocketConnection.class, Proxy.class);
-			engine = cons.newInstance(downstreamConnection, this);
+			java.lang.reflect.Constructor<? extends HTTPEngine> cons = engineType.getConstructor(SocketConnection.class, Proxy.class, HTTPEngineConfig.class);
+			engine = cons.newInstance(downstreamConnection, this, this.config.getEngineConfigFor(engineType));
 		}catch(ReflectiveOperationException e){
 			throw new RuntimeException("Failed to create instance of '" + engineType.getName() + "'", e);
 		}
@@ -683,23 +684,6 @@ public final class Proxy {
 		if(serv == null)
 			serv = this.getDefaultUpstreamServer();
 		return serv;
-	}
-
-	/**
-	 * 
-	 * @return The maximum time in milliseconds to wait until a connection to an upstream server is established before the connection attempt should be cancelled and an error
-	 *         be reported
-	 */
-	public int getUpstreamConnectionTimeout() {
-		return this.config.getUpstreamConnectionTimeout() * 1000;
-	}
-
-	/**
-	 * 
-	 * @return <code>true</code> if this proxy was configured to add headers to proxied HTTP messages
-	 */
-	public boolean enableHeaders() {
-		return this.config.isEnableHeaders();
 	}
 
 

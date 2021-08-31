@@ -57,10 +57,20 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerAddress | string | The address of the default upstream server where requests will be proxied to. | no | "localhost" |
 | upstreamServerPortPlain | number | The port number where the default upstream server is listening for plaintext connections. | no | 80 |
 | upstreamServerPortTLS | number | The port number where the default upstream server is listening for TLS connections. | no | 443 |
-| upstreamConnectionTimeout | number | The connection timeout in seconds when connecting to an upstream server. | no | 30 |
-| enableHeaders | boolean | Whether the proxy should add HTTP headers when proxying HTTP messages (for example "Via" and "X-Request-Id"). Note that this does not prevent plugins from adding HTTP headers. | no | true |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | `empty` |
 | pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omz-infrastructure/omz-proxy3-plugins) for more information. | no | `empty` |
+| engineConfig | object | Contains configuration objects passed to the specified HTTP engine. The key of each object in this object is the name of the HTTP engine to pass the object to; this may either be the fully qualified class name or only the class name. | no | `empty` |
+| defaultEngineConfig | object | Properties in this object will be copied to each HTTP engine configuration object, if not already set. See **Common HTTP engine parameters** for common properties. | no | `empty` |
+
+### Common HTTP engine parameters
+
+This is a list of common properties for the default or a specific HTTP engine configuration object:
+
+| Name | Type | Description | Required | Default value |
+| --- | --- | --- | --- | --- |
+| disableDefaultRequestLog | boolean | Disable the request log, containing the client IP address and HTTP request data. | no | false |
+| upstreamConnectionTimeout | number | The connection timeout in seconds when connecting to an upstream server. | no | 30 |
+| enableHeaders | boolean | Whether the proxy should add HTTP headers when proxying HTTP messages (for example "Via" and "X-Request-Id"). Note that this does not prevent plugins from adding HTTP headers. | no | true |
 
 ### Example
 

@@ -29,6 +29,7 @@ import org.omegazero.net.client.params.ConnectionParameters;
 import org.omegazero.net.client.params.TLSConnectionParameters;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.net.socket.impl.TLSConnection;
+import org.omegazero.proxy.config.HTTPEngineConfig;
 import org.omegazero.proxy.core.Proxy;
 import org.omegazero.proxy.core.ProxyEvents;
 import org.omegazero.proxy.http.HTTPCommon;
@@ -57,11 +58,10 @@ public class HTTP1 implements HTTPEngine {
 
 	private final SocketConnection downstreamConnection;
 	private final Proxy proxy;
+	private final HTTPEngineConfig config;
 
 	private final String downstreamConnectionDbgstr;
 	private final boolean downstreamSecurity;
-
-	private final boolean disableDefaultRequestLog;
 
 	private boolean downstreamClosed;
 
@@ -69,14 +69,13 @@ public class HTTP1 implements HTTPEngine {
 	private UpstreamServer lastUpstreamServer;
 	private Map<UpstreamServer, SocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
 
-	public HTTP1(SocketConnection downstreamConnection, Proxy proxy) {
+	public HTTP1(SocketConnection downstreamConnection, Proxy proxy, HTTPEngineConfig config) {
 		this.downstreamConnection = Objects.requireNonNull(downstreamConnection);
 		this.proxy = Objects.requireNonNull(proxy);
+		this.config = config;
 
 		this.downstreamConnectionDbgstr = this.proxy.debugStringForConnection(this.downstreamConnection, null);
 		this.downstreamSecurity = this.downstreamConnection instanceof TLSConnection;
-
-		this.disableDefaultRequestLog = this.proxy.getConfig().isDisableDefaultRequestLog();
 	}
 
 
@@ -183,12 +182,12 @@ public class HTTP1 implements HTTPEngine {
 			request = requestdata.getHttpMessage();
 			this.lastRequest = request;
 			request.setRequestId(HTTPCommon.requestId(this.downstreamConnection));
-			if(this.proxy.enableHeaders()){
+			if(this.config.isEnableHeaders()){
 				HTTPCommon.setDefaultHeaders(this.proxy, request);
 			}
 
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
-			if(!this.disableDefaultRequestLog)
+			if(!this.config.isDisableDefaultRequestLog())
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(request.getRequestId()), " - '", request.requestLine(),
 						"'");
 			if(this.hasReceivedResponse())
@@ -256,50 +255,50 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, SocketConnection uconn) throws IOException {
-		if(!userver.equals(HTTP1.this.lastUpstreamServer)){
+		if(!userver.equals(this.lastUpstreamServer)){
 			logger.warn(uconn.getAttachment(), " Received unexpected data");
 			return null;
 		}
 
-		HTTPMessage req = HTTP1.this.lastRequest;
+		HTTPMessage req = this.lastRequest;
 		if(req.getAttachment("engine_otherProtocol") != null){
-			HTTP1.this.downstreamConnection.write(data);
+			this.downstreamConnection.write(data);
 			return null;
 		}
 
-		HTTPMessageData responsedata = HTTP1.this.parseHTTPResponse(data);
+		HTTPMessageData responsedata = this.parseHTTPResponse(data);
 		final HTTPMessage response;
 		if(responsedata != null){
 			response = responsedata.getHttpMessage();
 			response.setRequestId(req.getRequestId());
-			if(HTTP1.this.proxy.enableHeaders()){
+			if(this.config.isEnableHeaders()){
 				if(!response.headerExists("date"))
 					response.setHeader("Date", HTTPCommon.dateString());
-				HTTPCommon.setDefaultHeaders(HTTP1.this.proxy, response);
+				HTTPCommon.setDefaultHeaders(this.proxy, response);
 			}
 			response.setCorrespondingMessage(req);
 			req.setCorrespondingMessage(response);
 
 			try{
 				boolean wasChunked = response.isChunkedTransfer();
-				HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, response, userver);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, this.downstreamConnection, uconn, response, userver);
 				if(response.getStatus() == HTTPCommon.STATUS_SWITCHING_PROTOCOLS){
 					req.setAttachment("engine_otherProtocol", 1);
 					logger.debug(uconn.getAttachment(), " Protocol changed");
-					HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, responsedata.getData());
+					HTTP1.writeHTTPMsg(this.downstreamConnection, response, responsedata.getData());
 					return responsedata.getData();
 				}else if(response.isIntermediateMessage()){
 					req.setCorrespondingMessage(null); // this is not the final response
 					return responsedata.getData();
 				}else{
-					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, HTTP1.this.downstreamConnection, (hmd) -> {
+					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, this.downstreamConnection, (hmd) -> {
 						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, hmd, userver);
 					}, (msg) -> {
 						HTTP1.this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, msg, userver);
 						if("close".equals(req.getHeader("connection")) || "close".equals(msg.getHeader("connection")))
 							HTTP1.this.downstreamConnection.close();
 					});
-					if(HTTP1.writeHTTPMsg(HTTP1.this.downstreamConnection, response, null))
+					if(HTTP1.writeHTTPMsg(this.downstreamConnection, response, null))
 						dc.addData(responsedata.getData());
 				}
 			}catch(Exception e){
@@ -313,8 +312,8 @@ public class HTTP1 implements HTTPEngine {
 				MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
 				dechunker.addData(data);
 			}else{
-				HTTP1.this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, HTTP1.this.downstreamConnection, uconn, req, data);
-				if(HTTP1.this.hasReceivedResponse())
+				this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, this.downstreamConnection, uconn, req, data);
+				if(this.hasReceivedResponse())
 					return null;
 				logger.warn(uconn.getAttachment(), " Invalid response");
 				throw new InvalidHTTPMessageException();
@@ -414,7 +413,7 @@ public class HTTP1 implements HTTPEngine {
 				d = HTTP1.this.processResponsePacket(d, userver, uconn);
 			}while(d != null && d.length > 0);
 		});
-		uconn.connect(this.proxy.getUpstreamConnectionTimeout());
+		uconn.connect(this.config.getUpstreamConnectionTimeout());
 		this.upstreamConnections.put(userver, uconn);
 		return uconn;
 	}

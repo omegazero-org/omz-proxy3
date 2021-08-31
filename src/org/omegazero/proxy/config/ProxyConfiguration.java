@@ -71,20 +71,17 @@ public class ProxyConfiguration extends JSONConfiguration {
 	@ConfigurationOption(description = "The TLS port of the upstream server")
 	private int upstreamServerPortTLS = 443;
 
-	@ConfigurationOption(description = "The maximum time in seconds to wait until a connection to an upstream server is established before reporting an error")
-	private int upstreamConnectionTimeout = 30;
-
-	@ConfigurationOption(description = "If the proxy should add additional HTTP headers to proxied HTTP messages (for example 'Via')")
-	private boolean enableHeaders = true;
-
 	@ConfigurationOption(description = "List of X509 certificate file names to trust in addition to the default installed certificates")
 	private List<String> trustedCertificates = new ArrayList<>();
 
 	@ConfigurationOption
 	private Map<String, ConfigObject> pluginConfig = new HashMap<>();
+	@ConfigurationOption
+	private Map<String, ConfigObject> engineConfig = new HashMap<>();
+	private Map<Class<?>, HTTPEngineConfig> engineConfigClMap = new HashMap<>();
 
 	@ConfigurationOption
-	private boolean disableDefaultRequestLog = false;
+	private ConfigObject defaultEngineConfig = new ConfigObject();
 
 
 	public ProxyConfiguration(byte[] fileData) {
@@ -156,6 +153,14 @@ public class ProxyConfiguration extends JSONConfiguration {
 				}
 			}else
 				throw new IllegalArgumentException("'pluginConfig' must be an object");
+		}else if(field.getName().equals("engineConfig")){
+			if(jsonObject instanceof JSONObject){
+				JSONObject j = ((JSONObject) jsonObject);
+				for(String k : j.keySet()){
+					this.engineConfig.put(k, convertJSONObject(j.getJSONObject(k)));
+				}
+			}else
+				throw new IllegalArgumentException("'engineConfig' must be an object");
 		}else if(field.getName().equals("bindAddresses")){
 			// JSONArray check already done because it is a list
 			((JSONArray) jsonObject).forEach((obj) -> {
@@ -229,14 +234,6 @@ public class ProxyConfiguration extends JSONConfiguration {
 		return this.upstreamServerPortTLS;
 	}
 
-	public int getUpstreamConnectionTimeout() {
-		return this.upstreamConnectionTimeout;
-	}
-
-	public boolean isEnableHeaders() {
-		return this.enableHeaders;
-	}
-
 	public List<String> getTrustedCertificates() {
 		return this.trustedCertificates;
 	}
@@ -249,7 +246,24 @@ public class ProxyConfiguration extends JSONConfiguration {
 			return new ConfigObject();
 	}
 
-	public boolean isDisableDefaultRequestLog() {
-		return this.disableDefaultRequestLog;
+	public ConfigObject getEngineConfigFor(Class<? extends org.omegazero.proxy.http.HTTPEngine> cl) {
+		if(this.engineConfigClMap.containsKey(cl)){
+			if(logger.debug())
+				logger.trace("Using cached config for engine ", cl.getName());
+			return this.engineConfigClMap.get(cl);
+		}else{
+			if(logger.debug())
+				logger.trace("Searching config for engine ", cl.getName(), " using class name");
+			ConfigObject o = this.engineConfig.get(cl.getName());
+			if(o == null)
+				o = this.engineConfig.get(cl.getSimpleName());
+			if(o != null)
+				o = this.defaultEngineConfig.merge(o);
+			else
+				o = this.defaultEngineConfig;
+			HTTPEngineConfig ec = new HTTPEngineConfig(o);
+			this.engineConfigClMap.put(cl, ec);
+			return ec;
+		}
 	}
 }
