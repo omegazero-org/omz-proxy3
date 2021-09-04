@@ -108,9 +108,10 @@ public class HTTP1 implements HTTPEngine {
 	public void respond(HTTPMessage request, HTTPMessageData responsedata) {
 		HTTPMessage response = responsedata.getHttpMessage().clone();
 		byte[] data = responsedata.getData();
-		if(!setRequestResponse(request, response))
+		if(!HTTPCommon.setRequestResponse(request, response))
 			return;
-		data = fixHTTPResponse(request, response, data);
+		response.deleteHeader("transfer-encoding");
+		data = HTTPCommon.prepareHTTPResponse(request, response, data);
 		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
 
@@ -144,7 +145,8 @@ public class HTTP1 implements HTTPEngine {
 			response.setHeader(h1[i], h1[i + 1]);
 		}
 
-		data = fixHTTPResponse(request, response, data);
+		response.deleteHeader("transfer-encoding");
+		data = HTTPCommon.prepareHTTPResponse(request, response, data);
 
 		if(!response.headerExists("date"))
 			response.setHeader("date", HTTPCommon.dateString());
@@ -154,7 +156,7 @@ public class HTTP1 implements HTTPEngine {
 		response.setHeader("x-proxy-engine", this.getClass().getSimpleName());
 		if(request != null)
 			response.setHeader("x-request-id", request.getRequestId());
-		if(!setRequestResponse(request, response))
+		if(!HTTPCommon.setRequestResponse(request, response))
 			return;
 		HTTP1.writeHTTPMsg(this.downstreamConnection, response, data);
 	}
@@ -555,32 +557,6 @@ public class HTTP1 implements HTTPEngine {
 		return new HTTPMessageData(msg, edata);
 	}
 
-
-	private static boolean setRequestResponse(HTTPMessage request, HTTPMessage response) {
-		if(request != null){
-			synchronized(request){
-				if(request.getCorrespondingMessage() != null) // received response already
-					return false;
-				request.setCorrespondingMessage(response);
-			}
-		}
-		return true;
-	}
-
-	private static byte[] fixHTTPResponse(HTTPMessage request, HTTPMessage response, byte[] data) {
-		response.deleteHeader("transfer-encoding");
-		if(MessageBodyDechunker.hasResponseBody(response.getStatus())){
-			if(request != null && request.getMethod().equals("HEAD")){
-				if(data.length > 0)
-					data = new byte[0];
-			}else
-				response.setHeader("content-length", String.valueOf(data.length));
-		}else if(data.length > 0)
-			throw new IllegalStateException("Response with status " + response.getStatus() + " must not have a response body");
-		else
-			response.deleteHeader("content-length");
-		return data;
-	}
 
 	private static byte[] toChunk(byte[] data) {
 		byte[] hexlen = Integer.toString(data.length, 16).getBytes();

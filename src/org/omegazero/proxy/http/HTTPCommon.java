@@ -81,6 +81,10 @@ public final class HTTPCommon {
 	private static final String UPSTREAM_CONNECT_ERROR_MESSAGE = "An error occurred while connecting to the upstream server";
 	private static final String UPSTREAM_ERROR_MESSAGE = "Error in connection to upstream server";
 
+	/**
+	 * 
+	 * @return A date string formatted for use in the <i>Date</i> HTTP header
+	 */
 	public static String dateString() {
 		return DATE_HEADER_FORMATTER.format(ZonedDateTime.now());
 	}
@@ -115,11 +119,22 @@ public final class HTTPCommon {
 		return full.substring(0, 8);
 	}
 
+	/**
+	 * Sets several common HTTP headers.
+	 * 
+	 * @param proxy The proxy instance
+	 * @param msg   The HTTP message to add headers to
+	 */
 	public static void setDefaultHeaders(Proxy proxy, HTTPMessage msg) {
 		msg.appendHeader("via", msg.getVersion() + " " + proxy.getInstanceName(), ", ");
 		msg.appendHeader("x-request-id", msg.getRequestId(), ",");
 	}
 
+	/**
+	 * 
+	 * @param e An error in an upstream connection
+	 * @return An error message created from the given exception
+	 */
 	public static String getUpstreamErrorMessage(Throwable e) {
 		if(e instanceof javax.net.ssl.SSLHandshakeException)
 			return UPSTREAM_CONNECT_ERROR_MESSAGE + ": TLS handshake error";
@@ -133,5 +148,86 @@ public final class HTTPCommon {
 			return UPSTREAM_ERROR_MESSAGE + ": Socket error";
 		else
 			return UPSTREAM_ERROR_MESSAGE + ": Unexpected error";
+	}
+
+
+	/**
+	 * Sets the response of the given <b>request</b> to <b>response</b> atomically and returns <code>true</code> if successful or <code>false</code> if the given request
+	 * already has a response associated with it.
+	 * 
+	 * @param request  The request
+	 * @param response The response
+	 * @return <code>true</code> if successful, <code>false</code> if the request already had a response
+	 * @since 3.3.1
+	 */
+	public static boolean setRequestResponse(HTTPMessage request, HTTPMessage response) {
+		if(request != null){
+			synchronized(request){
+				if(request.getCorrespondingMessage() != null)
+					return false;
+				request.setCorrespondingMessage(response);
+			}
+		}
+		return true;
+	}
+
+	/**
+	 * Prepares the given <b>response</b> by performing one of the following:
+	 * <ul>
+	 * <li>If the response is a result of a request with the <i>HEAD</i> method, <b>data</b> is set to an empty array and any <i>Content-Length</i> header is deleted</li>
+	 * <li>If the response should contain a response body ({@link #hasResponseBody(HTTPMessage, HTTPMessage)} returns <code>true</code>), the <i>Content-Length</i> header is
+	 * set to the length of <b>data</b></li>
+	 * <li>If the response should not contain a response body and <b>data</b> is empty, any <i>Content-Length</i> header is deleted</li>
+	 * </ul>
+	 * 
+	 * @param request  The request that caused the response
+	 * @param response The response
+	 * @param data     Data of the response
+	 * @return Possibly edited <b>data</b>
+	 * @throws IllegalArgumentException If the response should not contain a response body, the <b>request</b> is not made with the <i>HEAD</i> method and data is non-empty
+	 * @since 3.3.1
+	 */
+	public static byte[] prepareHTTPResponse(HTTPMessage request, HTTPMessage response, byte[] data) {
+		if(request.getMethod().equals("HEAD")){
+			if(data.length > 0)
+				data = new byte[0];
+			response.deleteHeader("content-length");
+		}else if(HTTPCommon.hasResponseBody(request, response)){
+			response.setHeader("content-length", String.valueOf(data.length));
+		}else if(data.length > 0){
+			throw new IllegalArgumentException("Response with status " + response.getStatus() + " must not have a response body");
+		}else
+			response.deleteHeader("content-length");
+		return data;
+	}
+
+
+	/**
+	 * 
+	 * @param status A HTTP status code
+	 * @return <code>true</code> if a response with the given status code should contain a response
+	 * @since 3.3.1
+	 * @see #hasResponseBody(HTTPMessage, HTTPMessage)
+	 */
+	public static boolean hasResponseBody(int status) {
+		return !((status >= 100 && status <= 199) || status == 204 || status == 304);
+	}
+
+	/**
+	 * 
+	 * @param request  A HTTP request
+	 * @param response A HTTP response
+	 * @return <code>true</code> if the <b>response</b> initiated by the given <b>request</b> should contain a response body
+	 * @since 3.3.1
+	 * @see #hasResponseBody(int)
+	 */
+	public static boolean hasResponseBody(HTTPMessage request, HTTPMessage response) {
+		// rfc 7230 section 3.3.3
+		if(request.getMethod().equals("HEAD"))
+			return false;
+		int status = response.getStatus();
+		if(request.getMethod().equals("CONNECT") && status >= 200 && status <= 299)
+			return false;
+		return hasResponseBody(status);
 	}
 }
