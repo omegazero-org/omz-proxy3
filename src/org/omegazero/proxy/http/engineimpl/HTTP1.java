@@ -37,6 +37,7 @@ import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.HTTPMessageData;
+import org.omegazero.proxy.http.HTTPValidator;
 import org.omegazero.proxy.http.InvalidHTTPMessageException;
 import org.omegazero.proxy.net.UpstreamServer;
 import org.omegazero.proxy.util.ProxyUtil;
@@ -51,9 +52,7 @@ public class HTTP1 implements HTTPEngine {
 	private static final byte[] EOL = new byte[] { 0xd, 0xa };
 	private static final byte[] EMPTY_CHUNK = new byte[] { '0', 0xd, 0xa, 0xd, 0xa };
 
-	private static final Pattern PATTERN_REQUEST_METHOD = Pattern.compile("[A-Z]{2,10}");
-	private static final Pattern PATTERN_REPONSE_STATUS = Pattern.compile("[0-9]{2,4}");
-	private static final Pattern PATTERN_HTTP_VERSION = Pattern.compile("HTTP/1\\.[01]");
+	private static final Pattern PATTERN_HTTP1_VERSION = Pattern.compile("HTTP/1\\.[01]");
 
 
 	private final SocketConnection downstreamConnection;
@@ -474,7 +473,7 @@ public class HTTP1 implements HTTPEngine {
 		if(startLineEnd < 0)
 			return null;
 		String[] startLine = headerData.substring(0, startLineEnd).split(" ");
-		if(!(startLine.length == 3 && PATTERN_REQUEST_METHOD.matcher(startLine[0]).matches() && PATTERN_HTTP_VERSION.matcher(startLine[2]).matches()))
+		if(!(startLine.length == 3 && HTTPValidator.validMethod(startLine[0]) && PATTERN_HTTP1_VERSION.matcher(startLine[2]).matches()))
 			return null;
 		String requestURI = startLine[1];
 		String host = null;
@@ -490,13 +489,8 @@ public class HTTP1 implements HTTPEngine {
 			host = requestURI.substring(authStart, pathStart);
 			requestURI = requestURI.substring(pathStart);
 		}
-
-		// make sure the request uri only contains printable ASCII characters
-		for(int i = 0; i < requestURI.length(); i++){
-			char c = requestURI.charAt(i);
-			if(c <= 32 || c >= 127)
-				return null;
-		}
+		if(!HTTPValidator.validPath(requestURI))
+			return null;
 
 		String[] headerLines = headerData.substring(startLineEnd + 2).split("\r\n");
 		Map<String, String> headers = new java.util.HashMap<>(headerLines.length);
@@ -507,9 +501,10 @@ public class HTTP1 implements HTTPEngine {
 			headers.put(headerLine.substring(0, sep).trim().toLowerCase(), headerLine.substring(sep + 1).trim());
 		}
 
-		if(host == null){
+		if(host == null)
 			host = headers.get("host");
-		}
+		if(!HTTPValidator.validAuthority(host))
+			return null;
 
 		HTTPMessage msg = new HTTPMessage(startLine[0], this.downstreamSecurity ? "https" : "http", host, requestURI, startLine[2], headers);
 
@@ -529,7 +524,7 @@ public class HTTP1 implements HTTPEngine {
 		if(startLineEnd < 0)
 			startLineEnd = headerEnd;
 		String[] startLine = headerData.substring(0, startLineEnd).split(" ");
-		if(!(startLine.length >= 2 && PATTERN_HTTP_VERSION.matcher(startLine[0]).matches() && PATTERN_REPONSE_STATUS.matcher(startLine[1]).matches()))
+		if(!(startLine.length >= 2 && PATTERN_HTTP1_VERSION.matcher(startLine[0]).matches() && HTTPValidator.validStatus(startLine[1])))
 			return null;
 
 		HTTPMessage msg = new HTTPMessage(Integer.parseInt(startLine[1]), startLine[0]);
