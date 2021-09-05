@@ -42,8 +42,6 @@ public final class ProxyEvents {
 	public static final Event HTTP_RESPONSE_ENDED = new Event("onHTTPResponseEnded",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);
-	public static final Event UPSTREAM_CONNECTION_PERMITTED = new Event("isUpstreamConnectionPermitted", false, new Class<?>[] { HTTPMessage.class, UpstreamServer.class },
-			Boolean.class, true);
 	public static final Event UPSTREAM_CONNECTION = new Event("onUpstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_CLOSED = new Event("onUpstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_ERROR = new Event("onUpstreamConnectionError", new Class<?>[] { SocketConnection.class, Throwable.class });

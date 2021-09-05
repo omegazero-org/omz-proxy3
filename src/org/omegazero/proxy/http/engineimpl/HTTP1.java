@@ -314,11 +314,6 @@ public class HTTP1 implements HTTPEngine {
 
 	// called in synchronized context
 	private SocketConnection connectUpstream(UpstreamServer userver) {
-		if(!this.proxy.dispatchBooleanEvent(ProxyEvents.UPSTREAM_CONNECTION_PERMITTED, true, this.lastRequest, userver)){
-			logger.info(this.downstreamConnectionDbgstr, " Connection to ", userver, " blocked");
-			this.respondError(this.lastRequest, HTTPCommon.STATUS_FORBIDDEN, "Forbidden", "You are not permitted to access this resource");
-			return null;
-		}
 		Class<? extends NetClientManager> type;
 		ConnectionParameters params;
 		if((this.downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
