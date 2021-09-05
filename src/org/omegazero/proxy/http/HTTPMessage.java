@@ -61,7 +61,7 @@ public class HTTPMessage implements Serializable {
 
 	private transient boolean locked = false;
 
-	private HTTPMessage(boolean request, Map<String, String> headers) {
+	protected HTTPMessage(boolean request, Map<String, String> headers) {
 		this.request = request;
 		if(headers == null)
 			this.headerFields = new HashMap<>();
@@ -543,8 +543,19 @@ public class HTTPMessage implements Serializable {
 	 * {@link #headerFields} and {@link #attachments} are the only objects where a new instance is created.
 	 */
 	@Override
-	public synchronized HTTPMessage clone() {
+	public HTTPMessage clone() {
 		HTTPMessage c = new HTTPMessage(this.request, null);
+		this.cloneData(c);
+		return c;
+	}
+
+	/**
+	 * Copies all class variables of this <code>HTTPMessage</code> into the given <code>HTTPMessage</code> object.
+	 * 
+	 * @param c The object to copy all variables into
+	 * @since 3.3.1
+	 */
+	protected final synchronized void cloneData(HTTPMessage c) {
 		c.method = this.method;
 		c.scheme = this.scheme;
 		c.authority = this.authority;
@@ -565,7 +576,6 @@ public class HTTPMessage implements Serializable {
 		if(this.attachments != null)
 			c.attachments = new HashMap<>(this.attachments);
 		c.chunkedTransfer = this.chunkedTransfer;
-		return c;
 	}
 
 	@Override
