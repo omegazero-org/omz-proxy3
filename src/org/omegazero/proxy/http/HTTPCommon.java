@@ -180,7 +180,7 @@ public final class HTTPCommon {
 	 * <li>If the response should not contain a response body and <b>data</b> is empty, any <i>Content-Length</i> header is deleted</li>
 	 * </ul>
 	 * 
-	 * @param request  The request that caused the response
+	 * @param request  The request that caused the response. May be <code>null</code>
 	 * @param response The response
 	 * @param data     Data of the response
 	 * @return Possibly edited <b>data</b>
@@ -188,7 +188,7 @@ public final class HTTPCommon {
 	 * @since 3.3.1
 	 */
 	public static byte[] prepareHTTPResponse(HTTPMessage request, HTTPMessage response, byte[] data) {
-		if(request.getMethod().equals("HEAD")){
+		if(request != null && request.getMethod().equals("HEAD")){
 			if(data.length > 0)
 				data = new byte[0];
 			response.deleteHeader("content-length");
@@ -215,7 +215,7 @@ public final class HTTPCommon {
 
 	/**
 	 * 
-	 * @param request  A HTTP request
+	 * @param request  A HTTP request. May be <code>null</code>
 	 * @param response A HTTP response
 	 * @return <code>true</code> if the <b>response</b> initiated by the given <b>request</b> should contain a response body
 	 * @since 3.3.1
@@ -223,11 +223,13 @@ public final class HTTPCommon {
 	 */
 	public static boolean hasResponseBody(HTTPMessage request, HTTPMessage response) {
 		// rfc 7230 section 3.3.3
-		if(request.getMethod().equals("HEAD"))
-			return false;
 		int status = response.getStatus();
-		if(request.getMethod().equals("CONNECT") && status >= 200 && status <= 299)
-			return false;
+		if(request != null){
+			if(request.getMethod().equals("HEAD"))
+				return false;
+			if(request.getMethod().equals("CONNECT") && status >= 200 && status <= 299)
+				return false;
+		}
 		return hasResponseBody(status);
 	}
 }
