@@ -1,4 +1,4 @@
-# omz-proxy3
+# omz-proxy version 3
 
 
 
@@ -57,6 +57,7 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerAddress | string | The address of the default upstream server where requests will be proxied to. | no | "localhost" |
 | upstreamServerPortPlain | number | The port number where the default upstream server is listening for plaintext connections. | no | 80 |
 | upstreamServerPortTLS | number | The port number where the default upstream server is listening for TLS connections. | no | 443 |
+| upstreamServerProtocols | array(string) | A list of protocol names the default upstream server supports. The list of supported protocols is checked by the running HTTP engine and a specific protocol name is usually also defined by it. | no | ["http/1.1"] |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | `empty` |
 | pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omz-infrastructure/omz-proxy3-plugins) for more information. | no | `empty` |
 | engineConfig | object | Contains configuration objects passed to the specified HTTP engine. The key of each object in this object is the name of the HTTP engine to pass the object to; this may either be the fully qualified class name or only the class name. | no | `empty` |

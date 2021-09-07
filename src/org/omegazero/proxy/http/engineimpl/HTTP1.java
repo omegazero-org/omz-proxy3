@@ -308,6 +308,12 @@ public class HTTP1 implements HTTPEngine {
 
 	// called in synchronized context
 	private SocketConnection connectUpstream(UpstreamServer userver) {
+		if(!userver.isProtocolSupported("http/1.1")){
+			this.respondError(this.lastRequest, HTTPCommon.STATUS_HTTP_VERSION_NOT_SUPPORTED, "HTTP Version Not Supported",
+					"Unable to proxy request because the upstream server does not support HTTP/1");
+			return null;
+		}
+
 		SocketConnection uconn;
 		try{
 			uconn = ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamSecurity, userver, HTTP1_ALPN);

@@ -199,7 +199,7 @@ public final class Proxy {
 
 		if(this.config.getUpstreamServerAddress() != null)
 			this.defaultUpstreamServer = new UpstreamServer(InetAddress.getByName(this.config.getUpstreamServerAddress()), this.config.getUpstreamServerPortPlain(),
-					this.config.getUpstreamServerPortTLS());
+					this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols());
 	}
 
 

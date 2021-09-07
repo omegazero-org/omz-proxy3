@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -70,6 +71,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private int upstreamServerPortPlain = 80;
 	@ConfigurationOption(description = "The TLS port of the upstream server")
 	private int upstreamServerPortTLS = 443;
+	@ConfigurationOption
+	private Set<String> upstreamServerProtocols = null;
 
 	@ConfigurationOption(description = "List of X509 certificate file names to trust in addition to the default installed certificates")
 	private List<String> trustedCertificates = new ArrayList<>();
@@ -145,6 +148,17 @@ public class ProxyConfiguration extends JSONConfiguration {
 				}
 			}else
 				throw new IllegalArgumentException("'errdocFiles' must be an object");
+		}else if(field.getName().equals("upstreamServerProtocols")){
+			if(jsonObject instanceof JSONArray){
+				this.upstreamServerProtocols = new java.util.HashSet<>();
+				((JSONArray) jsonObject).forEach((obj) -> {
+					if(obj instanceof String){
+						this.upstreamServerProtocols.add((String) obj);
+					}else
+						throw new IllegalArgumentException("Values in 'upstreamServerProtocols' must be strings");
+				});
+			}else
+				throw new IllegalArgumentException("'upstreamServerProtocols' must be an array");
 		}else if(field.getName().equals("pluginConfig")){
 			if(jsonObject instanceof JSONObject){
 				JSONObject j = ((JSONObject) jsonObject);
@@ -232,6 +246,10 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public int getUpstreamServerPortTLS() {
 		return this.upstreamServerPortTLS;
+	}
+
+	public Set<String> getUpstreamServerProtocols() {
+		return this.upstreamServerProtocols;
 	}
 
 	public List<String> getTrustedCertificates() {

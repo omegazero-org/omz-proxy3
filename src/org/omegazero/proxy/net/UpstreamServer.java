@@ -12,30 +12,65 @@
 package org.omegazero.proxy.net;
 
 import java.net.InetAddress;
+import java.util.HashSet;
+import java.util.Set;
 
 public class UpstreamServer {
 
 	private final InetAddress address;
 	private final int plainPort;
 	private final int securePort;
+	private final Set<String> protocols;
 
 	public UpstreamServer(InetAddress address, int plainPort, int securePort) {
+		this(address, plainPort, securePort, null);
+	}
+
+	public UpstreamServer(InetAddress address, int plainPort, int securePort, Set<String> protocols) {
 		this.address = address;
 		this.plainPort = plainPort;
 		this.securePort = securePort;
+		if(protocols != null)
+			this.protocols = protocols;
+		else{
+			this.protocols = new HashSet<String>();
+			this.protocols.add("http/1.1");
+		}
 	}
 
 
+	/**
+	 * 
+	 * @return The address of this <code>UpstreamServer</code>
+	 */
 	public InetAddress getAddress() {
 		return this.address;
 	}
 
+	/**
+	 * 
+	 * @return The port on which this <code>UpstreamServer</code> is listening for plaintext connections
+	 */
 	public int getPlainPort() {
 		return this.plainPort;
 	}
 
+	/**
+	 * 
+	 * @return The port on which this <code>UpstreamServer</code> is listening for encrypted connections
+	 */
 	public int getSecurePort() {
 		return this.securePort;
+	}
+
+	/**
+	 * 
+	 * @param proto The name of the protocol
+	 * @return <code>true</code> if this <code>UpstreamServer</code> was configured to support the given protocol name
+	 * @since 3.3.1
+	 */
+	public boolean isProtocolSupported(String proto) {
+		return this.protocols.contains(proto);
 	}
 
 	@Override
