@@ -273,6 +273,7 @@ public class HTTP1 implements HTTPEngine {
 					return responsedata.getData();
 				}else if(response.isIntermediateMessage()){
 					req.setCorrespondingMessage(null); // this is not the final response
+					HTTP1.writeHTTPMsg(this.downstreamConnection, response, responsedata.getData());
 					return responsedata.getData();
 				}else{
 					MessageBodyDechunker dc = this.handleHTTPMessage(wasChunked, response, uconn, this.downstreamConnection, (hmd) -> {
