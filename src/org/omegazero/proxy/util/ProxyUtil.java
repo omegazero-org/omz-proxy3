@@ -11,7 +11,14 @@
  */
 package org.omegazero.proxy.util;
 
+import java.net.InetSocketAddress;
+
+import org.omegazero.net.client.NetClientManager;
+import org.omegazero.net.client.params.ConnectionParameters;
+import org.omegazero.net.client.params.TLSConnectionParameters;
 import org.omegazero.net.socket.SocketConnection;
+import org.omegazero.proxy.core.Proxy;
+import org.omegazero.proxy.net.UpstreamServer;
 
 public class ProxyUtil {
 
@@ -117,5 +124,34 @@ public class ProxyUtil {
 				writeStream.setOnWritable(null);
 			});
 		}
+	}
+
+
+	/**
+	 * Connects to an upstream server over TCP, plaintext or encrypted using TLS.
+	 * 
+	 * @param proxy              The proxy instance to connect with
+	 * @param downstreamSecurity Whether the client connection was encrypted
+	 * @param userver            The upstream server to connect to
+	 * @param alpn               The protocols to advertise using TLS ALPN
+	 * @return The new connection
+	 * @throws java.io.IOException If an IO error occurred
+	 * @since 3.3.1
+	 */
+	public static SocketConnection connectUpstreamTCP(Proxy proxy, boolean downstreamSecurity, UpstreamServer userver, String... alpn) throws java.io.IOException {
+		Class<? extends NetClientManager> type;
+		ConnectionParameters params;
+		if((downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
+			type = org.omegazero.net.client.TLSClientManager.class;
+			params = new TLSConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getSecurePort()));
+			((TLSConnectionParameters) params).setAlpnNames(alpn);
+			((TLSConnectionParameters) params).setSniOptions(new String[] { userver.getAddress().getHostName() });
+		}else if(userver.getPlainPort() > 0){
+			type = org.omegazero.net.client.PlainTCPClientManager.class;
+			params = new ConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getPlainPort()));
+		}else
+			throw new RuntimeException("Upstream server " + userver.getAddress() + " neither has a plain nor a secure port set");
+
+		return proxy.connection(type, params);
 	}
 }

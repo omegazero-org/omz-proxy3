@@ -12,7 +12,6 @@
 package org.omegazero.proxy.http.engineimpl;
 
 import java.io.IOException;
-import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Objects;
@@ -22,11 +21,6 @@ import java.util.regex.Pattern;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.common.util.ArrayUtil;
-import org.omegazero.net.client.NetClientManager;
-import org.omegazero.net.client.PlainTCPClientManager;
-import org.omegazero.net.client.TLSClientManager;
-import org.omegazero.net.client.params.ConnectionParameters;
-import org.omegazero.net.client.params.TLSConnectionParameters;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.net.socket.impl.TLSConnection;
 import org.omegazero.proxy.config.HTTPEngineConfig;
@@ -314,22 +308,9 @@ public class HTTP1 implements HTTPEngine {
 
 	// called in synchronized context
 	private SocketConnection connectUpstream(UpstreamServer userver) {
-		Class<? extends NetClientManager> type;
-		ConnectionParameters params;
-		if((this.downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
-			type = TLSClientManager.class;
-			params = new TLSConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getSecurePort()));
-			((TLSConnectionParameters) params).setAlpnNames(HTTP1_ALPN);
-			((TLSConnectionParameters) params).setSniOptions(new String[] { userver.getAddress().getHostName() });
-		}else if(userver.getPlainPort() > 0){
-			type = PlainTCPClientManager.class;
-			params = new ConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getPlainPort()));
-		}else
-			throw new RuntimeException("Upstream server " + userver.getAddress() + " neither has a plain nor a secure port set");
-
 		SocketConnection uconn;
 		try{
-			uconn = this.proxy.connection(type, params);
+			uconn = ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamSecurity, userver, HTTP1_ALPN);
 		}catch(IOException e){
 			logger.error("Connection failed: ", e);
 			this.respondError(this.lastRequest, HTTPCommon.STATUS_INTERNAL_SERVER_ERROR, "Internal Server Error", "Upstream connection creation failed");
