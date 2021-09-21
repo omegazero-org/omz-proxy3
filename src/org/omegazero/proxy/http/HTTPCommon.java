@@ -18,6 +18,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Random;
 
+import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.proxy.core.Proxy;
 
@@ -75,6 +76,7 @@ public final class HTTPCommon {
 	public static final int STATUS_NETWORK_AUTHENTICATION_REQUIRED = 511;
 
 	private static final Random RANDOM = new Random();
+	private static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 
@@ -92,11 +94,11 @@ public final class HTTPCommon {
 	public static String hstrFromInetAddress(InetAddress address) {
 		byte[] addrBytes = address.getAddress();
 		int nf = 0;
-		int bytesPerF = addrBytes.length / 4;
+		int bytesPerF = addrBytes.length >> 2;
 		for(int i = 0; i < 4; i++){
 			int n = 0;
 			for(int j = 0; j < bytesPerF; j++){
-				n += (addrBytes[bytesPerF * i + j] + nf + 46) << i;
+				n += addrBytes[bytesPerF * i + j] + nf + IADDR_HASH_SALT;
 			}
 			nf |= (n & 0xff) << (i * 8);
 		}
