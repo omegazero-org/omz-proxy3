@@ -56,7 +56,7 @@ public final class Proxy {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	public static final String VERSION = "3.3.1";
+	public static final String VERSION = "3.4.1";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
 
@@ -198,8 +198,8 @@ public final class Proxy {
 		}
 
 		if(this.config.getUpstreamServerAddress() != null)
-			this.defaultUpstreamServer = new UpstreamServer(InetAddress.getByName(this.config.getUpstreamServerAddress()), this.config.getUpstreamServerPortPlain(),
-					this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols());
+			this.defaultUpstreamServer = new UpstreamServer(InetAddress.getByName(this.config.getUpstreamServerAddress()), this.config.getUpstreamServerAddressTTL(),
+					this.config.getUpstreamServerPortPlain(), this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols());
 	}
 
 

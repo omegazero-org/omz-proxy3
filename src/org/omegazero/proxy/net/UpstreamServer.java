@@ -12,22 +12,36 @@
 package org.omegazero.proxy.net;
 
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.omegazero.common.logging.Logger;
+
 public class UpstreamServer {
 
-	private final InetAddress address;
+	private static final Logger logger = Logger.create();
+
+
+	private InetAddress address;
+	private final int addressTTL;
 	private final int plainPort;
 	private final int securePort;
 	private final Set<String> protocols;
 
+	private long addressExpiration;
+
 	public UpstreamServer(InetAddress address, int plainPort, int securePort) {
-		this(address, plainPort, securePort, null);
+		this(address, -1, plainPort, securePort, null);
 	}
 
 	public UpstreamServer(InetAddress address, int plainPort, int securePort, Set<String> protocols) {
+		this(address, -1, plainPort, securePort, protocols);
+	}
+
+	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Set<String> protocols) {
 		this.address = address;
+		this.addressTTL = addressTTL;
 		this.plainPort = plainPort;
 		this.securePort = securePort;
 		if(protocols != null)
@@ -35,6 +49,27 @@ public class UpstreamServer {
 		else{
 			this.protocols = new HashSet<String>();
 			this.protocols.add("http/1.1");
+		}
+
+		if(addressTTL >= 0)
+			this.addressExpiration = System.nanoTime() + addressTTL * 1000000000L;
+	}
+
+
+	private void reresolveAddressIfNecessary() {
+		if(this.addressTTL < 0)
+			return;
+		long time = System.nanoTime();
+		if(time <= this.addressExpiration)
+			return;
+		String hostname = this.address.getHostName();
+		try{
+			this.address = InetAddress.getByName(hostname);
+			this.addressExpiration = time + this.addressTTL * 1000000000L;
+			if(logger.debug())
+				logger.debug("Re-resolved address '", hostname, "': ", this.address.getHostAddress());
+		}catch(UnknownHostException e){
+			logger.warn("Error while re-resolving address '", hostname, "', using existing address: ", e.toString());
 		}
 	}
 
@@ -44,7 +79,16 @@ public class UpstreamServer {
 	 * @return The address of this <code>UpstreamServer</code>
 	 */
 	public InetAddress getAddress() {
+		this.reresolveAddressIfNecessary();
 		return this.address;
+	}
+
+	/**
+	 * 
+	 * @return The number of seconds the address of a resolved DNS name is valid; negative if configured to be valid forever (default)
+	 */
+	public int getAddressTTL() {
+		return this.addressTTL;
 	}
 
 	/**

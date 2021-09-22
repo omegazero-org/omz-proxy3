@@ -67,6 +67,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	@ConfigurationOption(description = "The address of the default upstream server")
 	private String upstreamServerAddress = "localhost";
+	@ConfigurationOption
+	private int upstreamServerAddressTTL = -1;
 	@ConfigurationOption(description = "The plaintext port of the upstream server")
 	private int upstreamServerPortPlain = 80;
 	@ConfigurationOption(description = "The TLS port of the upstream server")
@@ -238,6 +240,10 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public String getUpstreamServerAddress() {
 		return this.upstreamServerAddress;
+	}
+
+	public int getUpstreamServerAddressTTL() {
+		return this.upstreamServerAddressTTL;
 	}
 
 	public int getUpstreamServerPortPlain() {
