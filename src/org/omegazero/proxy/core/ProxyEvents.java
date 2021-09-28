@@ -17,6 +17,7 @@ import org.omegazero.common.eventbus.EventResult;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.HTTPMessageData;
+import org.omegazero.proxy.http.HTTPMessageTrailers;
 import org.omegazero.proxy.net.UpstreamServer;
 
 public final class ProxyEvents {
@@ -34,11 +35,15 @@ public final class ProxyEvents {
 	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+	public static final Event HTTP_REQUEST_TRAILERS = new Event("onHTTPRequestTrailers",
+			new Class<?>[] { SocketConnection.class, HTTPMessageTrailers.class, UpstreamServer.class }); // since 3.4.1
 	public static final Event HTTP_REQUEST_ENDED = new Event("onHTTPRequestEnded", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE = new Event("onHTTPResponse",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_DATA = new Event("onHTTPResponseData",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+	public static final Event HTTP_RESPONSE_TRAILERS = new Event("onHTTPResponseTrailers",
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessageTrailers.class, UpstreamServer.class }); // since 3.4.1
 	public static final Event HTTP_RESPONSE_ENDED = new Event("onHTTPResponseEnded",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
 	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);

@@ -14,14 +14,12 @@ package org.omegazero.proxy.http;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Objects;
-import java.util.Set;
 
 /**
  * Represents a generic HTTP request or response message, agnostic of the HTTP version used.
  */
-public class HTTPMessage implements Serializable {
+public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 
 	private static final long serialVersionUID = 1L;
 
@@ -40,7 +38,6 @@ public class HTTPMessage implements Serializable {
 	@SideOnly(side = SideOnly.Side.RESPONSE)
 	private int status;
 	private String version;
-	private final Map<String, String> headerFields;
 	private boolean chunkedTransfer;
 
 	private String origMethod;
@@ -62,11 +59,8 @@ public class HTTPMessage implements Serializable {
 	private transient boolean locked = false;
 
 	protected HTTPMessage(boolean request, Map<String, String> headers) {
+		super(headers);
 		this.request = request;
-		if(headers == null)
-			this.headerFields = new HashMap<>();
-		else
-			this.headerFields = headers;
 	}
 
 	/**
@@ -233,82 +227,6 @@ public class HTTPMessage implements Serializable {
 
 	/**
 	 * 
-	 * @param key The HTTP field name of this header field
-	 * @return The value of this header field, or <code>null</code> if it does not exist
-	 */
-	public String getHeader(String key) {
-		return this.headerFields.get(key);
-	}
-
-	/**
-	 * 
-	 * @param key The HTTP field name of this header field
-	 * @param def A value to return if a header field with the specified name does not exist
-	 * @return The value of this header field, or <b>def</b> if it does not exist
-	 */
-	public String getHeader(String key, String def) {
-		String v = this.getHeader(key);
-		if(v == null)
-			v = def;
-		return v;
-	}
-
-	/**
-	 * 
-	 * @param key   The HTTP field name of this header field
-	 * @param value The value of this header field. If <code>null</code>, the header will be deleted
-	 */
-	public void setHeader(String key, String value) {
-		this.checkLocked();
-		Objects.requireNonNull(key);
-		if(value == null)
-			this.headerFields.remove(key);
-		else
-			this.headerFields.put(key, value);
-	}
-
-	/**
-	 * Appends the given <b>value</b> to an existing header with the given <b>key</b>, separated by <b>separator</b>, or sets a header with the given <b>value</b> if no such
-	 * header exists.
-	 * 
-	 * @param key       The HTTP field name of this header field
-	 * @param value     The value to append to this header field, or the value of the header if it did not exist
-	 * @param separator The separator between the existing value and the new value
-	 */
-	public void appendHeader(String key, String value, String separator) {
-		this.checkLocked();
-		Objects.requireNonNull(key);
-		String val = this.getHeader(key);
-		val = ((val != null) ? (val + Objects.requireNonNull(separator)) : "") + Objects.requireNonNull(value);
-		this.setHeader(key, val);
-	}
-
-	/**
-	 * 
-	 * @param key The HTTP field name of the header to search for
-	 * @return <code>true</code> if a header with the given key exists
-	 */
-	public boolean headerExists(String key) {
-		return this.headerFields.containsKey(key);
-	}
-
-	/**
-	 * Deletes the header entry with the given key.<br>
-	 * <br>
-	 * This call is equivalent to <code>setHeader(key, null)</code>.
-	 * 
-	 * @param key The header to delete
-	 */
-	public void deleteHeader(String key) {
-		this.setHeader(key, null);
-	}
-
-	public Set<Entry<String, String>> getHeaderSet() {
-		return this.headerFields.entrySet();
-	}
-
-	/**
-	 * 
 	 * @return Whether the message body is chunked, as set by {@link #setChunkedTransfer(boolean)} or by the application that created this <code>HTTPMessage</code> object
 	 */
 	public boolean isChunkedTransfer() {
@@ -414,6 +332,7 @@ public class HTTPMessage implements Serializable {
 		this.locked = true;
 	}
 
+	@Override
 	protected void checkLocked() {
 		if(this.locked)
 			throw new IllegalStateException("HTTPMessage object is locked may no longer be modified");
