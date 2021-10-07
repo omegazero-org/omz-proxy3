@@ -76,7 +76,8 @@ public final class HTTPCommon {
 	public static final int STATUS_NETWORK_AUTHENTICATION_REQUIRED = 511;
 
 	private static final Random RANDOM = new Random();
-	private static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
+	public static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
+	public static final boolean USOCKET_ERROR_DEBUG = PropertyUtil.getBoolean("org.omegazero.http.upstreamSocketErrorDebug", false);
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 

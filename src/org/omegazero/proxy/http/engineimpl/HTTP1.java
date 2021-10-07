@@ -21,6 +21,7 @@ import java.util.regex.Pattern;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.common.util.ArrayUtil;
+import org.omegazero.net.common.NetCommon;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.net.socket.impl.TLSConnection;
 import org.omegazero.proxy.config.HTTPEngineConfig;
@@ -224,7 +225,7 @@ public class HTTP1 implements HTTPEngine {
 				if(HTTP1.writeHTTPMsg(uconn, request, null))
 					dc.addData(requestdata.getData());
 			}catch(IOException | UnsupportedOperationException e){
-				logger.warn("Error while processing request body chunk: ", e.toString());
+				logger.debug("Error while processing request body chunk: ", e.toString());
 				this.respondError(null, HTTPCommon.STATUS_BAD_REQUEST, "Bad Request", "Malformed request body");
 			}
 		}else{
@@ -232,7 +233,7 @@ public class HTTP1 implements HTTPEngine {
 			try{
 				dechunker.addData(data);
 			}catch(IOException e){
-				logger.warn("Error while processing request body chunk: ", e.toString());
+				logger.debug("Error while processing request body chunk: ", e.toString());
 				this.downstreamConnection.close();
 			}
 		}
@@ -240,7 +241,7 @@ public class HTTP1 implements HTTPEngine {
 
 	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, SocketConnection uconn) throws IOException {
 		if(!userver.equals(this.lastUpstreamServer)){
-			logger.warn(uconn.getAttachment(), " Received unexpected data");
+			logUNetError(uconn.getAttachment(), " Received unexpected data");
 			return null;
 		}
 
@@ -300,7 +301,7 @@ public class HTTP1 implements HTTPEngine {
 				this.proxy.dispatchEvent(ProxyEvents.INVALID_HTTP_RESPONSE, this.downstreamConnection, uconn, req, data);
 				if(this.hasReceivedResponse())
 					return null;
-				logger.warn(uconn.getAttachment(), " Invalid response");
+				logUNetError(uconn.getAttachment(), " Invalid response");
 				throw new InvalidHTTPMessageException();
 			}
 		}
@@ -330,26 +331,29 @@ public class HTTP1 implements HTTPEngine {
 			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION, uconn);
 		});
 		uconn.setOnTimeout(() -> {
-			logger.error(uconn.getAttachment(), " Connect timed out");
+			logUNetError(uconn.getAttachment(), " Connect timed out");
 			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			if(userver.equals(HTTP1.this.lastUpstreamServer))
 				this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_GATEWAY_TIMEOUT, "Gateway Timeout", "Connection to the upstream server timed out");
 		});
 		uconn.setOnError((e) -> {
-			// error in connection to upstream server is log level error instead of warn (as for downstream connections) because they usually indicate a problem with the
-			// upstream server, which is more severe than a client connection getting RSTed
 			if(e instanceof IOException)
-				logger.error(uconn.getAttachment(), " Error: ", e.toString());
+				logUNetError(uconn.getAttachment(), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
 			else
 				logger.error(uconn.getAttachment(), " Internal error: ", e);
-			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
 
-			if(userver.equals(HTTP1.this.lastUpstreamServer)){
-				if(e instanceof IOException)
-					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", HTTPCommon.getUpstreamErrorMessage(e));
-				else
-					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_INTERNAL_SERVER_ERROR, "Internal Server Error",
-							"An internal error occurred in the connection to the upstream server");
+			try{
+				HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
+
+				if(userver.equals(HTTP1.this.lastUpstreamServer)){
+					if(e instanceof IOException)
+						this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", HTTPCommon.getUpstreamErrorMessage(e));
+					else
+						this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_INTERNAL_SERVER_ERROR, "Internal Server Error",
+								"An internal error occurred in the connection to the upstream server");
+				}
+			}catch(Exception ue){
+				logger.error("Internal error while handling upstream connection error: ", ue);
 			}
 		});
 		uconn.setOnClose(() -> {
@@ -363,13 +367,13 @@ public class HTTP1 implements HTTPEngine {
 				HTTPMessage response = HTTP1.this.lastRequest.getCorrespondingMessage();
 				if(response == null){
 					// did not receive a response
-					logger.error(uconn.getAttachment(), " Connection closed unexpectedly");
+					logUNetError(uconn.getAttachment(), " Connection closed unexpectedly");
 					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly");
 				}else{
 					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
 					if(dechunker != null){ // may be null if respond() was used
 						if(!dechunker.hasReceivedAllData()){
-							logger.warn(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
+							logUNetError(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
 							HTTP1.this.downstreamConnection.close();
 						}else
 							dechunker.end();
@@ -535,6 +539,13 @@ public class HTTP1 implements HTTPEngine {
 		return new HTTPMessageData(msg, edata);
 	}
 
+
+	private static void logUNetError(Object... o) {
+		if(HTTPCommon.USOCKET_ERROR_DEBUG)
+			logger.debug(o);
+		else
+			logger.warn(o);
+	}
 
 	private static byte[] toChunk(byte[] data) {
 		byte[] hexlen = Integer.toString(data.length, 16).getBytes();
