@@ -127,6 +127,15 @@ public class HTTP1 implements HTTPEngine {
 	}
 
 
+	private void respondUNetError(HTTPMessage request, int status, String title, String message, SocketConnection uconn, UpstreamServer userver) {
+		if(request != null && request.hasResponse())
+			return;
+		this.proxy.dispatchEvent(ProxyEvents.HTTP_FORWARD_FAILED, this.downstreamConnection, uconn, request, userver);
+		if(!request.hasResponse())
+			this.respondError(request, status, title, message);
+	}
+
+
 	private void respondEx(HTTPMessage request, int status, byte[] data, String[] h1, String... hEx) {
 		if(request != null && request.getCorrespondingMessage() != null) // received response already
 			return;
@@ -334,7 +343,8 @@ public class HTTP1 implements HTTPEngine {
 			logUNetError(uconn.getAttachment(), " Connect timed out");
 			HTTP1.this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			if(userver.equals(HTTP1.this.lastUpstreamServer))
-				this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_GATEWAY_TIMEOUT, "Gateway Timeout", "Connection to the upstream server timed out");
+				this.respondUNetError(HTTP1.this.lastRequest, HTTPCommon.STATUS_GATEWAY_TIMEOUT, "Gateway Timeout", "Connection to the upstream server timed out", uconn,
+						userver);
 		});
 		uconn.setOnError((e) -> {
 			if(e instanceof IOException)
@@ -347,7 +357,7 @@ public class HTTP1 implements HTTPEngine {
 
 				if(userver.equals(HTTP1.this.lastUpstreamServer)){
 					if(e instanceof IOException)
-						this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", HTTPCommon.getUpstreamErrorMessage(e));
+						this.respondUNetError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", HTTPCommon.getUpstreamErrorMessage(e), uconn, userver);
 					else
 						this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_INTERNAL_SERVER_ERROR, "Internal Server Error",
 								"An internal error occurred in the connection to the upstream server");
@@ -368,7 +378,8 @@ public class HTTP1 implements HTTPEngine {
 				if(response == null){
 					// did not receive a response
 					logUNetError(uconn.getAttachment(), " Connection closed unexpectedly");
-					this.respondError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly");
+					this.respondUNetError(HTTP1.this.lastRequest, HTTPCommon.STATUS_BAD_GATEWAY, "Bad Gateway", "Connection to the upstream server closed unexpectedly", uconn,
+							userver);
 				}else{
 					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment("engine_dechunker");
 					if(dechunker != null){ // may be null if respond() was used
