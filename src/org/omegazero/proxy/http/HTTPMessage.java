@@ -47,14 +47,14 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	private int origStatus;
 	private String origVersion;
 
-	private HTTPMessage correspondingMessage;
+	private transient HTTPMessage correspondingMessage;
 
 	private String requestId;
 	private transient HTTPEngine engine;
 
 	private int size;
 
-	private Map<String, Object> attachments = null;
+	private transient Map<String, Object> attachments = null;
 
 	private transient boolean locked = false;
 
