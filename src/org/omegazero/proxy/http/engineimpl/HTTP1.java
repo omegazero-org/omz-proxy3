@@ -116,7 +116,7 @@ public class HTTP1 implements HTTPEngine {
 
 	@Override
 	public void respondError(HTTPMessage request, int status, String title, String message, String... headers) {
-		if(request != null && request.getCorrespondingMessage() != null)
+		if(request != null && request.hasResponse())
 			return;
 		String accept = request != null ? request.getHeader("accept") : null;
 		HTTPErrdoc errdoc = this.proxy.getErrdocForAccept(accept);
@@ -137,7 +137,7 @@ public class HTTP1 implements HTTPEngine {
 
 
 	private void respondEx(HTTPMessage request, int status, byte[] data, String[] h1, String... hEx) {
-		if(request != null && request.getCorrespondingMessage() != null) // received response already
+		if(request != null && request.hasResponse())
 			return;
 		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", status);
 		HTTPMessage response = new HTTPMessage(status, "HTTP/1.1");
@@ -452,7 +452,7 @@ public class HTTP1 implements HTTPEngine {
 
 
 	private boolean hasReceivedResponse() {
-		return this.lastRequest != null && this.lastRequest.getCorrespondingMessage() != null;
+		return this.lastRequest != null && this.lastRequest.hasResponse();
 	}
 
 
