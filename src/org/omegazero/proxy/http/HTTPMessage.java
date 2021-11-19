@@ -64,7 +64,7 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 	/**
-	 * @see #HTTPMessage(int, String, Map)
+	 * See {@link #HTTPMessage(int, String, Map)}.
 	 */
 	public HTTPMessage(int status, String version) {
 		this(status, version, null);
@@ -87,7 +87,7 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 	/**
-	 * @see #HTTPMessage(String, String, String, String, String, Map)
+	 * See {@link #HTTPMessage(String, String, String, String, String, Map)}.
 	 */
 	public HTTPMessage(String method, String scheme, String authority, String path, String version) {
 		this(method, scheme, authority, path, version, null);
@@ -120,106 +120,197 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 
 
 	/**
+	 * Returns <code>true</code> if this object represents a HTTP request, or <code>false</code> if this object represents a HTTP response.
 	 * 
-	 * @return <code>true</code> if this object represents a HTTP request, or <code>false</code> if this object represents a HTTP response
+	 * @return Whether this object represents a HTTP request
 	 */
 	public final boolean isRequest() {
 		return this.request;
 	}
 
+	/**
+	 * Returns the time this {@link HTTPMessage} object was created, as returned by {@link System#currentTimeMillis()}.
+	 * 
+	 * @return The creation time of this object in milliseconds
+	 */
 	public long getCreatedTime() {
 		return this.createdTime;
 	}
 
+	/**
+	 * Returns the HTTP method of this HTTP request, or <code>null</code> if this {@link HTTPMessage} is not a HTTP request.
+	 * 
+	 * @return The HTTP request method
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getMethod() {
 		return this.method;
 	}
 
+	/**
+	 * Returns the HTTP request scheme (URI component) of this HTTP request, or <code>null</code> if this {@link HTTPMessage} is not a HTTP request.
+	 * 
+	 * @return The HTTP request scheme
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getScheme() {
 		return this.scheme;
 	}
 
+	/**
+	 * Returns the HTTP request authority (URI component) of this HTTP request, or <code>null</code> if this {@link HTTPMessage} is not a HTTP request or does not contain an
+	 * authority component.
+	 * 
+	 * @return The HTTP request authority
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getAuthority() {
 		return this.authority;
 	}
 
+	/**
+	 * Returns the HTTP request path (URI component) of this HTTP request, or <code>null</code> if this {@link HTTPMessage} is not a HTTP request.
+	 * 
+	 * @return The HTTP request path
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getPath() {
 		return this.path;
 	}
 
+	/**
+	 * Returns the HTTP response status of this HTTP response, or <code>0</code> if this {@link HTTPMessage} is not a HTTP response.
+	 * 
+	 * @return The HTTP response status
+	 */
 	@SideOnly(side = SideOnly.Side.RESPONSE)
 	public int getStatus() {
 		return this.status;
 	}
 
+	/**
+	 * Returns the HTTP version declared in this {@link HTTPMessage}.
+	 * 
+	 * @return The HTTP version string
+	 */
 	public String getVersion() {
 		return this.version;
 	}
 
+	/**
+	 * Sets the HTTP method of this HTTP request. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param method The new HTTP request method
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setMethod(String method) {
 		this.checkLocked();
 		this.method = method;
 	}
 
+	/**
+	 * Sets the HTTP scheme (URI component) of this HTTP request. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param method The new HTTP request scheme
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setScheme(String scheme) {
 		this.checkLocked();
 		this.scheme = scheme;
 	}
 
+	/**
+	 * Sets the HTTP authority (URI component) of this HTTP request. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param method The new HTTP request authority
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setAuthority(String authority) {
 		this.checkLocked();
 		this.authority = authority;
 	}
 
+	/**
+	 * Sets the HTTP path (URI component) of this HTTP request. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param method The new HTTP request path
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public void setPath(String path) {
 		this.checkLocked();
 		this.path = path;
 	}
 
+	/**
+	 * Sets the HTTP response status of this HTTP response. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param method The new HTTP response status
+	 */
 	@SideOnly(side = SideOnly.Side.RESPONSE)
 	public void setStatus(int status) {
 		this.checkLocked();
 		this.status = status;
 	}
 
+	/**
+	 * Sets the HTTP version string of this {@link HTTPMessage}. Does not change the value returned by {@linkplain #getOrigVersion() <code>getOrig*</code> methods}.
+	 * 
+	 * @param version The new version string
+	 */
 	public void setVersion(String version) {
 		this.checkLocked();
 		this.version = version;
 	}
 
+	/**
+	 * See {@link #getMethod()}, and {@link #getOrigVersion()} about the <code>getOrig*</code> methods.
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigMethod() {
 		return this.origMethod;
 	}
 
+	/**
+	 * See {@link #getScheme()}, and {@link #getOrigVersion()} about the <code>getOrig*</code> methods.
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigScheme() {
 		return this.origScheme;
 	}
 
+	/**
+	 * See {@link #getAuthority()}, and {@link #getOrigVersion()} about the <code>getOrig*</code> methods.
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigAuthority() {
 		return this.origAuthority;
 	}
 
+	/**
+	 * See {@link #getPath()}, and {@link #getOrigVersion()} about the <code>getOrig*</code> methods.
+	 */
 	@SideOnly(side = SideOnly.Side.REQUEST)
 	public String getOrigPath() {
 		return this.origPath;
 	}
 
+	/**
+	 * See {@link #getStatus()}, and {@link #getOrigVersion()} about the <code>getOrig*</code> methods.
+	 */
 	@SideOnly(side = SideOnly.Side.RESPONSE)
 	public int getOrigStatus() {
 		return this.origStatus;
 	}
 
+	/**
+	 * See {@link #getVersion()}.<br>
+	 * <br>
+	 * This value is immutable (the same applies to all values returned by <code>getOrig*</code> methods), meaning it is always the value that was passed in the constructor,
+	 * and cannot be changed with a call to {@link #setVersion(String)}. If {@link #setVersion(String)} was never called, {@link #getVersion()} and this method return the same
+	 * value.
+	 * 
+	 * @return The initial HTTP version string
+	 */
 	public String getOrigVersion() {
 		return this.origVersion;
 	}
@@ -251,6 +342,12 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 
+	/**
+	 * Returns this {@link HTTPMessage}s opposite <code>HTTPMessage</code>. If this <code>HTTPMessage</code> is a request, this method returns the requests response (may be
+	 * <code>null</code>), and vice versa.
+	 * 
+	 * @return The opposite <code>HTTPMessage</code>
+	 */
 	public HTTPMessage getCorrespondingMessage() {
 		return this.correspondingMessage;
 	}
@@ -261,8 +358,9 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 
 
 	/**
+	 * Returns a request ID associated with this request by the engine using {@link HTTPMessage#setRequestId(String)}, <code>null</code> otherwise.
 	 * 
-	 * @return A request ID associated with this request using {@link HTTPMessage#setRequestId(String)}, <code>null</code> otherwise
+	 * @return The string representation of the request ID
 	 */
 	public String getRequestId() {
 		return this.requestId;
@@ -278,6 +376,11 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 		this.requestId = Objects.requireNonNull(requestId);
 	}
 
+	/**
+	 * Returns the {@link HTTPEngine} that created this {@link HTTPMessage}.
+	 * 
+	 * @return The <code>HTTPEngine</code>
+	 */
 	public HTTPEngine getEngine() {
 		return this.engine;
 	}
@@ -288,6 +391,11 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 
+	/**
+	 * Returns the estimated size in bytes required to represent this {@link HTTPMessage} in the protocol. May be 0.
+	 * 
+	 * @return The estimated size in bytes
+	 */
 	public int getSize() {
 		return this.size;
 	}
