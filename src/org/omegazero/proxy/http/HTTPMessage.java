@@ -511,6 +511,8 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 
+	@java.lang.annotation.Retention(java.lang.annotation.RetentionPolicy.RUNTIME)
+	@java.lang.annotation.Target(value = { java.lang.annotation.ElementType.FIELD, java.lang.annotation.ElementType.METHOD })
 	public @interface SideOnly {
 		Side side();
 
