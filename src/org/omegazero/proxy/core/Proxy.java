@@ -31,7 +31,7 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
 import org.omegazero.common.config.ConfigObject;
-import org.omegazero.common.event.EventQueueExecutor;
+import org.omegazero.common.event.TaskQueueExecutor;
 import org.omegazero.common.event.Tasks;
 import org.omegazero.common.eventbus.Event;
 import org.omegazero.common.eventbus.EventBus;
@@ -81,7 +81,7 @@ public final class Proxy {
 	private SSLContext sslContext;
 	private long tlsDataReloadInterval = -1;
 
-	private EventQueueExecutor serverWorker;
+	private TaskQueueExecutor serverWorker;
 	private ApplicationWorkerProvider serverWorkerProvider;
 
 	private final List<Function<SocketConnection, Class<? extends HTTPEngine>>> httpEngineSelectors = new ArrayList<>();
@@ -145,7 +145,7 @@ public final class Proxy {
 
 		this.loadErrdocs();
 
-		this.serverWorker = new EventQueueExecutor(false, "Worker");
+		this.serverWorker = TaskQueueExecutor.fromSequential().name("Worker").workerThreads(-1).build();
 		this.serverWorker.setErrorHandler((e) -> {
 			logger.fatal("Error in server worker: ", e);
 			Proxy.this.shutdown();
