@@ -1,14 +1,17 @@
 # omz-proxy version 3
 
+[![Build Status](https://drone.omegazero.org/api/badges/omz-infrastructure/omz-proxy3/status.svg)](https://drone.omegazero.org/omz-infrastructure/omz-proxy3)
+[![Documentation Build Status](https://docs.omegazero.org/ci/gen/badge.php?owner=omz-infrastructure&repo=omz-proxy3)](https://docs.omegazero.org/ci/#/repos/omz-infrastructure/omz-proxy3)
+[![Release](https://api.omegazero.org/v1/git/getrepobadge?author=omz-infrastructure&repository=omz-proxy3&metric=release&color=09b&width=100)](https://git.omegazero.org/omz-infrastructure/omz-proxy3/releases)
 
 
 ## Installation
 
 *omz-proxy3* requires Java 8 or above and these three dependencies which need to be added to the classpath: [omz-java-lib](https://git.omegazero.org/omz-infrastructure/omz-java-lib), [omz-net-lib](https://git.omegazero.org/omz-infrastructure/omz-net-lib) and [JSON-java](https://github.com/stleary/JSON-java).
 
-When all four JAR files are present, this command can be run to quickly start the proxy with default settings (note that you may need to adjust the file names of the JAR files):
+A JAR file containing the proxy and all dependencies is available [here](https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all), which can then be run using this command to start the proxy (note that you need to use the correct file name of the JAR file):
 ```bash
-java -cp "omz-proxy3.jar:omz-java-lib.jar:omz-net-lib.jar:json-java.jar" org.omegazero.proxy.core.ProxyMain
+java -cp "omz-proxy-(version).jar" org.omegazero.proxy.core.ProxyMain
 ```
 
 ## Command line arguments
