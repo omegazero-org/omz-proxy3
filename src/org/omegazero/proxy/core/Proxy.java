@@ -56,7 +56,7 @@ public final class Proxy {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	public static final String VERSION = "3.4.2";
+	public static final String VERSION = "$BUILDVERSION";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
 
@@ -103,6 +103,8 @@ public final class Proxy {
 
 	public synchronized void init(Args args) throws IOException {
 		this.requireStateMax(State.NEW);
+
+		logger.info("omz-proxy (java) version ", VERSION);
 
 		this.updateState(State.PREINIT);
 		String configCmdData = args.getValue("config");
