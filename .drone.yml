@@ -1,0 +1,58 @@
+
+kind: pipeline
+name: java8
+
+platform:
+  arch: amd64
+
+steps:
+- name: prepare-dependencies
+  image: omz-ci-tools
+  pull: never
+  commands:
+  - artifact-dl-java maven/org.json:json:20211205
+  - artifact-dl-java omz/org.omegazero.common:common:release
+  - artifact-dl-java omz/org.omegazero.net:netlib:release
+
+- name: prepare-source
+  image: omz-ci-tools
+  pull: never
+  commands:
+  - setversion src/org/omegazero/proxy/core/Proxy.java
+
+- name: build
+  image: openjdk:8
+  commands:
+  - find src -iname "*.java" > srcfiles
+  - mkdir bin
+  - javac -version -verbose -d bin -cp json-20211205.jar:common-release.jar:netlib-release.jar @srcfiles
+  - mkdir -p bin/org/omegazero/proxy/resources
+  - cp -r src/org/omegazero/proxy/resources/* bin/org/omegazero/proxy/resources
+  - jar cf build.jar -C bin .
+  depends_on:
+  - prepare-dependencies
+  - prepare-source
+
+- name: merge-jars
+  image: openjdk:8
+  commands:
+  - (cd bin; unzip -uo ../json-20211205.jar)
+  - (cd bin; unzip -uo ../common-release.jar)
+  - (cd bin; unzip -uo ../netlib-release.jar)
+  - rm -r bin/META-INF
+  - jar cf build-all.jar -C bin .
+  depends_on:
+  - build
+
+- name: publish
+  image: omz-ci-tools
+  pull: never
+  commands:
+  - artifact-push-java build.jar omz/org.omegazero.proxy:omz-proxy
+  - artifact-push-java build-all.jar omz/org.omegazero.proxy:omz-proxy-all
+  depends_on:
+  - build
+  - merge-jars
+  environment:
+    OMZ_ARTIFACT_PUSH_TOKEN:
+      from_secret: artifact_push_token

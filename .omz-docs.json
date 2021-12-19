@@ -1,0 +1,22 @@
+{
+	"generator": "javadoc",
+	"targetName": "omz-proxy3",
+	"generatorOptions": {
+		"src": ["src"],
+		"packages": ["org"],
+		"windowtitle": "omegazero HTTP proxy version 3",
+		"doctitle": "omegazero HTTP proxy version 3",
+		"header": "omz proxy v3",
+		"links": [
+			"https://docs.oracle.com/javase/8/docs/api/",
+			"https://stleary.github.io/JSON-java/",
+			"https://docs.omegazero.org/javadoc/omz-java-lib/",
+			"https://docs.omegazero.org/javadoc/omz-net-lib/"
+		],
+		"dependencies": [
+			"maven/org.json:json:20211205",
+			"omz/org.omegazero.common:common:latest",
+			"omz/org.omegazero.net:netlib:latest"
+		]
+	}
+}
