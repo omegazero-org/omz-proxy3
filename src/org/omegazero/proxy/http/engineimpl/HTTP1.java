@@ -30,6 +30,7 @@ import org.omegazero.proxy.core.ProxyEvents;
 import org.omegazero.proxy.http.HTTPCommon;
 import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
+import org.omegazero.proxy.http.HTTPHeaderContainer;
 import org.omegazero.proxy.http.HTTPMessage;
 import org.omegazero.proxy.http.HTTPMessageData;
 import org.omegazero.proxy.http.HTTPValidator;
@@ -491,16 +492,19 @@ public class HTTP1 implements HTTPEngine {
 			return null;
 
 		String[] headerLines = headerData.substring(startLineEnd + 2).split("\r\n");
-		Map<String, String> headers = new java.util.HashMap<>(headerLines.length);
+		HTTPHeaderContainer headers = new HTTPHeaderContainer();
 		for(String headerLine : headerLines){
 			int sep = headerLine.indexOf(':');
 			if(sep < 0)
 				return null;
-			headers.put(headerLine.substring(0, sep).trim().toLowerCase(), headerLine.substring(sep + 1).trim());
+			String key = headerLine.substring(0, sep).toLowerCase();
+			String value = headerLine.substring(sep + 1).trim();
+			if(key.equals("host")){
+				if(host == null)
+					host = value;
+			}else
+				headers.addHeader(key, value);
 		}
-
-		if(host == null)
-			host = headers.get("host");
 		if(!HTTPValidator.validAuthority(host))
 			return null;
 
@@ -531,7 +535,7 @@ public class HTTP1 implements HTTPEngine {
 			int sep = headerLine.indexOf(':');
 			if(sep < 0)
 				return null;
-			msg.setHeader(headerLine.substring(0, sep).trim().toLowerCase(), headerLine.substring(sep + 1).trim());
+			msg.addHeader(headerLine.substring(0, sep).toLowerCase(), headerLine.substring(sep + 1).trim());
 		}
 
 		return this.parseHTTPCommon(msg, data, headerEnd);
@@ -591,11 +595,10 @@ public class HTTP1 implements HTTPEngine {
 			sb.append(msg.getVersion()).append(' ').append(msg.getStatus());
 		}
 		sb.append("\r\n");
-		for(Entry<String, String> header : msg.getHeaderSet()){
-			if(header.getKey().equals("host"))
-				sb.append("host: ").append(msg.getAuthority()).append("\r\n");
-			else
-				sb.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
+		if(msg.isRequest() && msg.getAuthority() != null)
+			sb.append("host: ").append(msg.getAuthority()).append("\r\n");
+		for(Entry<String, String> header : msg.headers()){
+			sb.append(header.getKey()).append(": ").append(header.getValue()).append("\r\n");
 		}
 		sb.append("\r\n");
 		conn.write(sb.toString().getBytes());

@@ -26,12 +26,39 @@ public class HTTPMessageTrailers extends HTTPHeaderContainer implements Serializ
 	private final HTTPMessage httpMessage;
 
 
-	public HTTPMessageTrailers(HTTPMessage httpMessage, Map<String, String> trailers) {
-		super(trailers);
+	/**
+	 * Creates a new {@link HTTPMessageTrailers} instance.<br>
+	 * <br>
+	 * Note that no deep copy of the <b>trailers</b> will be created, meaning changes made to the given {@link HTTPHeaderContainer} will reflect on this
+	 * {@link HTTPMessageTrailers}.
+	 * 
+	 * @param httpMessage The {@link HTTPMessage} these trailers belong to
+	 * @param trailers    The trailers
+	 * @since 3.5.1
+	 */
+	public HTTPMessageTrailers(HTTPMessage httpMessage, HTTPHeaderContainer trailers) {
+		super(trailers != null ? trailers.headerFields : null);
 		this.httpMessage = httpMessage;
 	}
 
+	/**
+	 * Creates a new {@link HTTPMessageTrailers} instance.
+	 * 
+	 * @param httpMessage The {@link HTTPMessage} these trailers belong to
+	 * @param trailers    The trailers
+	 * @deprecated Since 3.5.1, use {@link #HTTPMessageTrailers(HTTPMessage, HTTPHeaderContainer)} instead.
+	 */
+	@Deprecated
+	public HTTPMessageTrailers(HTTPMessage httpMessage, Map<String, String> trailers) {
+		this(httpMessage, HTTPHeaderContainer.fromLegacy(trailers));
+	}
 
+
+	/**
+	 * Returns the {@link HTTPMessage} this trailer data belongs to.
+	 * 
+	 * @return The <code>HTTPMessage</code>
+	 */
 	public HTTPMessage getHttpMessage() {
 		return this.httpMessage;
 	}

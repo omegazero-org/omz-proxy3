@@ -58,26 +58,31 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 
 	private transient boolean locked = false;
 
-	protected HTTPMessage(boolean request, Map<String, String> headers) {
-		super(headers);
+	/**
+	 * Creates a new <code>HTTPMessage</code> with the given <b>headers</b>.<br>
+	 * <br>
+	 * Note that no deep copy of the <b>headers</b> will be created, meaning changes made to the given {@link HTTPHeaderContainer} will reflect on this {@link HTTPMessage}.
+	 * 
+	 * @param request <code>true</code> if this <code>HTTPMessage</code> will represent a request
+	 * @param headers The HTTP headers
+	 * @since 3.5.1
+	 */
+	protected HTTPMessage(boolean request, HTTPHeaderContainer headers) {
+		super(headers != null ? headers.headerFields : null);
 		this.request = request;
 	}
 
 	/**
-	 * See {@link #HTTPMessage(int, String, Map)}.
-	 */
-	public HTTPMessage(int status, String version) {
-		this(status, version, null);
-	}
-
-	/**
-	 * Creates a new <code>HTTPMessage</code> representing a HTTP response.
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP response.<br>
+	 * <br>
+	 * Note that no deep copy of the <b>headers</b> will be created, meaning changes made to the given {@link HTTPHeaderContainer} will reflect on this {@link HTTPMessage}.
 	 * 
 	 * @param status  The status in the response
 	 * @param version The HTTP version
 	 * @param headers The HTTP headers
+	 * @since 3.5.1
 	 */
-	public HTTPMessage(int status, String version, Map<String, String> headers) {
+	public HTTPMessage(int status, String version, HTTPHeaderContainer headers) {
 		this(false, headers);
 		this.status = status;
 		this.version = version;
@@ -87,14 +92,32 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 	/**
-	 * See {@link #HTTPMessage(String, String, String, String, String, Map)}.
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP response with no headers.
+	 * 
+	 * @param status  The status in the response
+	 * @param version The HTTP version
 	 */
-	public HTTPMessage(String method, String scheme, String authority, String path, String version) {
-		this(method, scheme, authority, path, version, null);
+	public HTTPMessage(int status, String version) {
+		this(status, version, (HTTPHeaderContainer) null);
 	}
 
 	/**
-	 * Creates a new <code>HTTPMessage</code> representing a HTTP request.
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP response.
+	 * 
+	 * @param status  The status in the response
+	 * @param version The HTTP version
+	 * @param headers The HTTP headers
+	 * @deprecated Since 3.5.1, use {@link #HTTPMessage(int, String, HTTPHeaderContainer)} instead.
+	 */
+	@Deprecated
+	public HTTPMessage(int status, String version, Map<String, String> headers) {
+		this(status, version, HTTPHeaderContainer.fromLegacy(headers));
+	}
+
+	/**
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP request.<br>
+	 * <br>
+	 * Note that no deep copy of the <b>headers</b> will be created, meaning changes made to the given {@link HTTPHeaderContainer} will reflect on this {@link HTTPMessage}.
 	 * 
 	 * @param method    The request method
 	 * @param scheme    The URL scheme (e.g. "http")
@@ -102,8 +125,9 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	 * @param path      The requested path or URL
 	 * @param version   The HTTP version
 	 * @param headers   The HTTP headers
+	 * @since 3.5.1
 	 */
-	public HTTPMessage(String method, String scheme, String authority, String path, String version, Map<String, String> headers) {
+	public HTTPMessage(String method, String scheme, String authority, String path, String version, HTTPHeaderContainer headers) {
 		this(true, headers);
 		this.method = method;
 		this.scheme = scheme;
@@ -116,6 +140,35 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 		this.origAuthority = authority;
 		this.origPath = path;
 		this.origVersion = version;
+	}
+
+	/**
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP request with no headers.
+	 * 
+	 * @param method    The request method
+	 * @param scheme    The URL scheme (e.g. "http")
+	 * @param authority The URL authority or, if not provided, the value of the "Host" header (e.g. "example.com")
+	 * @param path      The requested path or URL
+	 * @param version   The HTTP version
+	 */
+	public HTTPMessage(String method, String scheme, String authority, String path, String version) {
+		this(method, scheme, authority, path, version, (HTTPHeaderContainer) null);
+	}
+
+	/**
+	 * Creates a new <code>HTTPMessage</code> representing a HTTP request.
+	 * 
+	 * @param method    The request method
+	 * @param scheme    The URL scheme (e.g. "http")
+	 * @param authority The URL authority or, if not provided, the value of the "Host" header (e.g. "example.com")
+	 * @param path      The requested path or URL
+	 * @param version   The HTTP version
+	 * @param headers   The HTTP headers
+	 * @deprecated Since 3.5.1, use {@link #HTTPMessage(String, String, String, String, String, HTTPHeaderContainer)} instead.
+	 */
+	@Deprecated
+	public HTTPMessage(String method, String scheme, String authority, String path, String version, Map<String, String> headers) {
+		this(method, scheme, authority, path, version, HTTPHeaderContainer.fromLegacy(headers));
 	}
 
 
