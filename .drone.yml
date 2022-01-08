@@ -25,7 +25,7 @@ steps:
   commands:
   - find src -iname "*.java" > srcfiles
   - mkdir bin
-  - javac -version -verbose -d bin -cp json-20211205.jar:common-release.jar:netlib-release.jar @srcfiles
+  - javac -version -Werror -verbose -d bin -cp json-20211205.jar:common-release.jar:netlib-release.jar @srcfiles
   - mkdir -p bin/org/omegazero/proxy/resources
   - cp -r src/org/omegazero/proxy/resources/* bin/org/omegazero/proxy/resources
   - jar cf build.jar -C bin .
