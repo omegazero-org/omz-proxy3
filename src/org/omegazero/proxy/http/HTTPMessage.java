@@ -620,7 +620,7 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	/**
 	 * Creates a mostly shallow copy of this <code>HTTPMessage</code> object.<br>
 	 * <br>
-	 * {@link #headerFields} and {@link #attachments} are the only objects where a new instance is created.
+	 * Headers are deep copied and mappings of {@linkplain #setAttachment(String, Object) attachments} are copied to a new map (attachment values are not deep copied).
 	 */
 	@Override
 	public HTTPMessage clone() {
@@ -630,7 +630,9 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 	}
 
 	/**
-	 * Copies all class variables of this <code>HTTPMessage</code> into the given <code>HTTPMessage</code> object.
+	 * Copies all class variables of this <code>HTTPMessage</code> into the given <code>HTTPMessage</code> object.<br>
+	 * <br>
+	 * Headers are deep copied and mappings of {@linkplain #setAttachment(String, Object) attachments} are copied to a new map (attachment values are not deep copied).
 	 * 
 	 * @param c The object to copy all variables into
 	 * @since 3.3.1
@@ -642,7 +644,12 @@ public class HTTPMessage extends HTTPHeaderContainer implements Serializable {
 		c.path = this.path;
 		c.status = this.status;
 		c.version = this.version;
-		c.headerFields.putAll(this.headerFields);
+		for(Map.Entry<String, String[]> header : super.headerFields.entrySet()){
+			String[] v = header.getValue();
+			String[] vcopy = new String[v.length];
+			System.arraycopy(v, 0, vcopy, 0, v.length);
+			c.headerFields.put(header.getKey(), vcopy);
+		}
 		c.origMethod = this.origMethod;
 		c.origScheme = this.origScheme;
 		c.origAuthority = this.origAuthority;
