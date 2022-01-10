@@ -117,12 +117,14 @@ public class ProxyUtil {
 	 * @param readStream  The connection where reads should be blocked until <b>writeStream</b> is writable again
 	 */
 	public static void handleBackpressure(SocketConnection writeStream, SocketConnection readStream) {
-		if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
-			readStream.setReadBlock(true);
-			writeStream.setOnWritable(() -> {
-				readStream.setReadBlock(false);
-				writeStream.setOnWritable(null);
-			});
+		synchronized(writeStream.getWriteLock()){
+			if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
+				readStream.setReadBlock(true);
+				writeStream.setOnWritable(() -> {
+					writeStream.setOnWritable(null);
+					readStream.setReadBlock(false);
+				});
+			}
 		}
 	}
 
