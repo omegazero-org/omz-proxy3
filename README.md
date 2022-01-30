@@ -1,13 +1,13 @@
 # omz-proxy version 3
 
-[![Build Status](https://drone.omegazero.org/api/badges/omz-infrastructure/omz-proxy3/status.svg)](https://drone.omegazero.org/omz-infrastructure/omz-proxy3)
-[![Documentation Build Status](https://docs.omegazero.org/ci/gen/badge.php?owner=omz-infrastructure&repo=omz-proxy3)](https://docs.omegazero.org/ci/#/repos/omz-infrastructure/omz-proxy3)
-[![Release](https://api.omegazero.org/v1/git/getrepobadge?author=omz-infrastructure&repository=omz-proxy3&metric=release&color=09b&width=100)](https://git.omegazero.org/omz-infrastructure/omz-proxy3/releases)
+[![Build Status](https://drone.omegazero.org/api/badges/omegazero/omz-proxy3/status.svg)](https://drone.omegazero.org/omegazero/omz-proxy3)
+[![Documentation Build Status](https://docs.omegazero.org/ci/gen/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.omegazero.org/ci/#/repos/omegazero/omz-proxy3)
+[![Release](https://api.omegazero.org/v1/git/getrepobadge?author=omegazero&repository=omz-proxy3&metric=release&color=09b&width=100)](https://git.omegazero.org/omegazero/omz-proxy3/releases)
 
 
 ## Installation
 
-*omz-proxy3* requires Java 8 or above and these three dependencies which need to be added to the classpath: [omz-java-lib](https://git.omegazero.org/omz-infrastructure/omz-java-lib), [omz-net-lib](https://git.omegazero.org/omz-infrastructure/omz-net-lib) and [JSON-java](https://github.com/stleary/JSON-java).
+*omz-proxy3* requires Java 8 or above and these three dependencies which need to be added to the classpath: [omz-java-lib](https://git.omegazero.org/omegazero/omz-java-lib), [omz-net-lib](https://git.omegazero.org/omegazero/omz-net-lib) and [JSON-java](https://github.com/stleary/JSON-java).
 
 A JAR file containing the proxy and all dependencies is available [here](https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all), which can then be run using this command to start the proxy (note that you need to use the correct file name of the JAR file):
 ```bash
@@ -63,7 +63,7 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerPortTLS | number | The port number where the default upstream server is listening for TLS connections. | no | 443 |
 | upstreamServerProtocols | array(string) | A list of protocol names the default upstream server supports. The list of supported protocols is checked by the running HTTP engine and a specific protocol name is usually also defined by it. | no | ["http/1.1"] |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | `empty` |
-| pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omz-infrastructure/omz-proxy3-plugins) for more information. | no | `empty` |
+| pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omegazero/omz-proxy3-plugins) for more information. | no | `empty` |
 | engineConfig | object | Contains configuration objects passed to the specified HTTP engine. The key of each object in this object is the name of the HTTP engine to pass the object to; this may either be the fully qualified class name or only the class name. | no | `empty` |
 | defaultEngineConfig | object | Properties in this object will be copied to each HTTP engine configuration object, if not already set. See **Common HTTP engine parameters** for common properties. | no | `empty` |
 
