@@ -2,7 +2,9 @@
 	"generator": "javadoc",
 	"targetName": "omz-proxy3",
 	"generatorOptions": {
-		"src": ["src"],
+		"src": [
+			"base/main/java"
+		],
 		"packages": ["org"],
 		"windowtitle": "omegazero HTTP proxy version 3",
 		"doctitle": "omegazero HTTP proxy version 3",
@@ -15,8 +17,8 @@
 		],
 		"dependencies": [
 			"maven/org.json:json:20211205",
-			"omz/org.omegazero.common:common:latest",
-			"omz/org.omegazero.net:netlib:latest"
+			"omz/org.omegazero.common:omz-common:latest",
+			"omz/org.omegazero.net:omz-netlib:latest"
 		]
 	}
 }

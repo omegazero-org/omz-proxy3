@@ -11,24 +11,24 @@ steps:
   pull: never
   commands:
   - artifact-dl-java maven/org.json:json:20211205
-  - artifact-dl-java omz/org.omegazero.common:common:release
-  - artifact-dl-java omz/org.omegazero.net:netlib:release
+  - artifact-dl-java omz/org.omegazero.common:omz-common:release
+  - artifact-dl-java omz/org.omegazero.net:omz-netlib:release
 
 - name: prepare-source
   image: omz-ci-tools
   pull: never
   commands:
-  - setversion src/org/omegazero/proxy/core/Proxy.java
+  - mkdir build
+  - setversion base/main/java/org/omegazero/proxy/core/Proxy.java
 
-- name: build
+- name: build-base
   image: openjdk:8
   commands:
-  - find src -iname "*.java" > srcfiles
-  - mkdir bin
-  - javac -version -Werror -verbose -d bin -cp json-20211205.jar:common-release.jar:netlib-release.jar @srcfiles
-  - mkdir -p bin/org/omegazero/proxy/resources
-  - cp -r src/org/omegazero/proxy/resources/* bin/org/omegazero/proxy/resources
-  - jar cf build.jar -C bin .
+  - mkdir -p build/base/bin
+  - find base/main/java -iname "*.java" > build/base/srcfiles
+  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar @build/base/srcfiles
+  - cp -r base/main/resources/* build/base/bin/
+  - jar cf build-base.jar -C build/base/bin .
   depends_on:
   - prepare-dependencies
   - prepare-source
@@ -36,22 +36,22 @@ steps:
 - name: merge-jars
   image: openjdk:8
   commands:
-  - (cd bin; unzip -uo ../json-20211205.jar)
-  - (cd bin; unzip -uo ../common-release.jar)
-  - (cd bin; unzip -uo ../netlib-release.jar)
-  - rm -r bin/META-INF
-  - jar cf build-all.jar -C bin .
+  - (cd build/base/bin; unzip -uo ../../../json-20211205.jar)
+  - (cd build/base/bin; unzip -uo ../../../omz-common-release.jar)
+  - (cd build/base/bin; unzip -uo ../../../omz-netlib-release.jar)
+  - rm -r build/base/bin/META-INF
+  - jar cf build-base-all.jar -C build/base/bin .
   depends_on:
-  - build
+  - build-base
 
 - name: publish
   image: omz-ci-tools
   pull: never
   commands:
-  - artifact-push-java build.jar omz/org.omegazero.proxy:omz-proxy
-  - artifact-push-java build-all.jar omz/org.omegazero.proxy:omz-proxy-all
+  - artifact-push-java build-base.jar omz/org.omegazero.proxy:omz-proxy
+  - artifact-push-java build-base-all.jar omz/org.omegazero.proxy:omz-proxy-all
   depends_on:
-  - build
+  - build-base
   - merge-jars
   environment:
     OMZ_ARTIFACT_PUSH_TOKEN:
