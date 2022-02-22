@@ -433,18 +433,14 @@ public final class Proxy {
 		});
 
 		this.dispatchEvent(ProxyEvents.DOWNSTREAM_CONNECTION, conn);
+		if(!conn.isConnected()) // connection might have been closed by an event handler
+			return;
 
 		HTTPEngine engine = this.createHTTPEngineInstance(this.selectHTTPEngine(conn), conn);
 		engineRef.set(engine);
 		logger.debug(msgToProxy, " HTTPEngine type: ", engine.getClass().getName());
 
-		conn.setOnData((data) -> {
-			try{
-				engineRef.get().processData(data);
-			}catch(Exception e){
-				throw new RuntimeException("Error while processing data", e);
-			}
-		});
+		conn.setOnData(engine::processData);
 	}
 
 
@@ -467,7 +463,7 @@ public final class Proxy {
 	/**
 	 * Creates a new connection instance for an outgoing proxy connection.
 	 * 
-	 * @param type       The {@link NetClientManager} type to use for this connection
+	 * @param type The {@link NetClientManager} type to use for this connection
 	 * @param parameters Parameters for this connection
 	 * @return The new connection instance
 	 * @throws IOException
@@ -487,7 +483,7 @@ public final class Proxy {
 	 * Delegates the given event to this proxy's {@link EventBus}.
 	 * 
 	 * @param event The event to dispatch using this proxy's event bus
-	 * @param args  The arguments to pass the event handlers
+	 * @param args The arguments to pass the event handlers
 	 * @return The number of handlers executed
 	 * @see EventBus#dispatchEvent(Event, Object...)
 	 */
@@ -500,7 +496,7 @@ public final class Proxy {
 	 * Delegates the given event to this proxy's {@link EventBus}.
 	 * 
 	 * @param event The event to dispatch using this proxy's event bus
-	 * @param args  The arguments to pass the event handlers
+	 * @param args The arguments to pass the event handlers
 	 * @return An {@link EventResult} object containing information about this event execution
 	 * @see EventBus#dispatchEventRes(Event, Object...)
 	 */
@@ -519,8 +515,8 @@ public final class Proxy {
 	 * value.
 	 * 
 	 * @param event The event to dispatch using this proxy's event bus
-	 * @param def   The value to return if all event handlers return null or there are none
-	 * @param args  The arguments to pass the event handlers
+	 * @param def The value to return if all event handlers return null or there are none
+	 * @param args The arguments to pass the event handlers
 	 * @return The <code>boolean</code> value returned by the first event handler that returns a non-<code>null</code> value, or <b>def</b>
 	 */
 	public boolean dispatchBooleanEvent(Event event, boolean def, Object... args) {
@@ -679,7 +675,7 @@ public final class Proxy {
 	 * The error document is returned by {@link Proxy#getErrdoc(String)} when given the MIME type. The {@link HTTPEngine} implementation may choose any way to determine the
 	 * appropriate error document type for a request, but usually does so using the <b>Accept</b> HTTP request header.
 	 * 
-	 * @param type   The content type to set this error document for
+	 * @param type The content type to set this error document for
 	 * @param errdoc The <code>HTTPErrdoc</code> instance
 	 */
 	public void setErrdoc(String type, HTTPErrdoc errdoc) {
