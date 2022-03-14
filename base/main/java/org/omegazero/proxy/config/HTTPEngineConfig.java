@@ -31,6 +31,7 @@ public class HTTPEngineConfig extends ConfigObject {
 	private transient boolean enableHeaders;
 	private transient int maxHeaderSize;
 	private transient int requestTimeout;
+	private transient int responseTimeout;
 
 	public HTTPEngineConfig(ConfigObject co) {
 		this(co.copyData());
@@ -49,6 +50,10 @@ public class HTTPEngineConfig extends ConfigObject {
 		this.enableHeaders = super.optBoolean("enableHeaders", true);
 		this.maxHeaderSize = super.optInt("maxHeaderSize", 8192);
 		this.requestTimeout = super.optInt("requestTimeout", 5) * 1000;
+		this.responseTimeout = super.optInt("responseTimeout", 60) * 1000;
+
+		if(this.upstreamConnectionTimeout == this.responseTimeout)
+			throw new IllegalArgumentException("responseTimeout must not equal upstreamConnectionTimeout");
 	}
 
 
@@ -96,6 +101,15 @@ public class HTTPEngineConfig extends ConfigObject {
 	 */
 	public int getRequestTimeout() {
 		return this.requestTimeout;
+	}
+
+	/**
+	 * Returns the maximum time in milliseconds to wait for a response from an upstream server before responding with status {@code 504}.
+	 * 
+	 * @return The response timeout
+	 */
+	public int getResponseTimeout() {
+		return this.responseTimeout;
 	}
 
 

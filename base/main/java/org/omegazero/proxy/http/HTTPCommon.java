@@ -30,7 +30,7 @@ public final class HTTPCommon {
 
 	private static final Random RANDOM = new Random();
 	public static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
-	public static final boolean USOCKET_ERROR_DEBUG = PropertyUtil.getBoolean("org.omegazero.http.upstreamSocketErrorDebug", false);
+	public static final boolean USOCKET_ERROR_DEBUG = PropertyUtil.getBoolean("org.omegazero.http.upstreamSocketErrorDebug", false); // TODO: fix name, document in readme
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 

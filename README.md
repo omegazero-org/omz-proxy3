@@ -78,6 +78,7 @@ This is a list of common properties for the default or a specific HTTP engine co
 | enableHeaders | boolean | Whether the proxy should add HTTP headers when proxying HTTP messages (for example "Via" and "X-Request-Id"). Note that this does not prevent plugins from adding HTTP headers. | no | true |
 | maxHeaderSize | number | The maximum size of a HTTP message header (the start line and all headers) in bytes. | no | 8192 |
 | requestTimeout | number | The maximum time in seconds to wait for a request to finish before responding with status 408. | no | 5 |
+| responseTimeout | number | The maximum time in seconds to wait for a response from an upstream server before responding with status 504. This must not equal `upstreamConnectionTimeout`, because it would cause undefined behavior. | no | 60 |
 
 ### Example
 

@@ -54,6 +54,7 @@ public class HTTP1 implements HTTPEngine {
 	private static final String ATTACHMENT_KEY_DECHUNKER = "engine_dechunker";
 	private static final String ATTACHMENT_KEY_PENDING_RESPONSE = "engine_pendingresponse";
 	private static final String ATTACHMENT_KEY_UPROTOCOL = "engine_otherProtocol";
+	private static final String ATTACHMENT_KEY_RESPONSE_TIMEOUT = "engine_responseTimeoutId";
 
 
 	private final SocketConnection downstreamConnection;
@@ -113,6 +114,8 @@ public class HTTP1 implements HTTPEngine {
 			uconn.close();
 		if(this.currentRequestTimeoutId >= 0)
 			Tasks.clear(this.currentRequestTimeoutId);
+		if(this.currentRequest != null && this.currentRequest.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+			Tasks.clear((long) this.currentRequest.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 	}
 
 	@Override
@@ -137,6 +140,8 @@ public class HTTP1 implements HTTPEngine {
 		data = HTTPCommon.prepareHTTPResponse(request, response, data);
 		if(request != null){
 			synchronized(request){
+				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 				if(!request.hasAttachment(ATTACHMENT_KEY_DECHUNKER)){
 					this.writeHTTPMsg(this.downstreamConnection, response, data);
 					this.currentRequest = null;
@@ -303,6 +308,24 @@ public class HTTP1 implements HTTPEngine {
 
 				this.writeHTTPMsg(uconn, request, null);
 
+				if(this.config.getResponseTimeout() > 0){
+					long tid = Tasks.timeout(() -> {
+						logUNetError(this.currentUpstreamConnection.getAttachment(), " Response timeout");
+						try{
+							this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, request,
+									this.currentUpstreamServer);
+							this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
+									this.currentUpstreamServer);
+							this.currentUpstreamConnection.destroy();
+							this.responseReceiver.reset();
+						}catch(Exception e){
+							logger.error(this.currentUpstreamConnection.getAttachment(), " Error while handling response timeout: ", e);
+							this.downstreamConnection.close();
+						}
+					}, this.config.getResponseTimeout()).daemon().getId();
+					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
+				}
+
 				this.currentUpstreamConnection = uconn;
 				if(!uconn.hasConnected())
 					uconn.connect(this.config.getUpstreamConnectionTimeout());
@@ -357,6 +380,9 @@ public class HTTP1 implements HTTPEngine {
 			this.responseReceiver.reset();
 
 			data = Arrays.copyOfRange(data, offset, data.length);
+
+			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+				Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 
 			response.setOther(request);
 			if(this.config.isEnableHeaders()){
