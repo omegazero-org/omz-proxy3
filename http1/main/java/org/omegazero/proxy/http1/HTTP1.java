@@ -131,6 +131,10 @@ public class HTTP1 implements HTTPEngine {
 			throw new IllegalArgumentException("Can only respond to the current request");
 		if(!this.downstreamConnection.isConnected())
 			throw new IllegalStateException("Connection is no longer active");
+		if(this.currentRequestTimeoutId >= 0){ // this is possible when receiving invalid requests
+			Tasks.clear(this.currentRequestTimeoutId);
+			this.currentRequestTimeoutId = -1;
+		}
 
 		HTTPResponse response = responsedata.getHttpMessage();
 		byte[] data = responsedata.getData();
@@ -267,8 +271,10 @@ public class HTTP1 implements HTTPEngine {
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, this.currentUpstreamServer);
 				}
 				if(last){
-					Tasks.clear(this.currentRequestTimeoutId);
-					this.currentRequestTimeoutId = -1;
+					if(this.currentRequestTimeoutId >= 0){
+						Tasks.clear(this.currentRequestTimeoutId);
+						this.currentRequestTimeoutId = -1;
+					}
 					synchronized(request){
 						request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
 						HTTPResponseData res;
