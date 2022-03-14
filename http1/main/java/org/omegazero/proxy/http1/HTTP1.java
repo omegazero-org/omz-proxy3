@@ -16,6 +16,7 @@ import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
+import org.omegazero.common.event.Tasks;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.http.common.HTTPMessage;
@@ -69,6 +70,7 @@ public class HTTP1 implements HTTPEngine {
 	private boolean downstreamClosed;
 
 	private HTTPRequest currentRequest;
+	private long currentRequestTimeoutId = -1;
 	private UpstreamServer currentUpstreamServer;
 	private SocketConnection currentUpstreamConnection;
 	private Map<UpstreamServer, SocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
@@ -96,7 +98,7 @@ public class HTTP1 implements HTTPEngine {
 			this.respondError(this.currentRequest, STATUS_BAD_REQUEST, e.isMsgUserVisible() ? e.getMessage() : HTTPCommon.MSG_BAD_REQUEST);
 		}catch(Exception e){
 			if(this.currentRequest != null){
-				logger.error("Error while processing packet: ", e);
+				logger.error(this.downstreamConnectionDbgstr, " Error while processing packet: ", e);
 				this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 				this.downstreamConnection.close();
 			}else
@@ -109,6 +111,8 @@ public class HTTP1 implements HTTPEngine {
 		this.downstreamClosed = true;
 		for(SocketConnection uconn : this.upstreamConnections.values())
 			uconn.close();
+		if(this.currentRequestTimeoutId >= 0)
+			Tasks.clear(this.currentRequestTimeoutId);
 	}
 
 	@Override
@@ -201,6 +205,20 @@ public class HTTP1 implements HTTPEngine {
 	private void processPacket(byte[] data) throws InvalidHTTPMessageException {
 		assert Thread.holdsLock(this);
 		if(this.currentRequest == null){ // expecting a new request
+			if(this.currentRequestTimeoutId < 0){
+				this.currentRequestTimeoutId = Tasks.timeout(() -> {
+					logger.debug(this.downstreamConnectionDbgstr, " Request timeout");
+					try{
+						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TIMEOUT, this.downstreamConnection);
+						this.respondError(this.currentRequest, STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
+						this.requestReceiver.reset();
+					}catch(Exception e){
+						logger.error(this.downstreamConnectionDbgstr, " Error while handling request timeout: ", e);
+						this.downstreamConnection.close();
+					}
+				}, this.config.getRequestTimeout()).daemon().getId();
+			}
+
 			int offset;
 			try{
 				offset = this.requestReceiver.receive(data, 0);
@@ -244,6 +262,8 @@ public class HTTP1 implements HTTPEngine {
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, this.currentUpstreamServer);
 				}
 				if(last){
+					Tasks.clear(this.currentRequestTimeoutId);
+					this.currentRequestTimeoutId = -1;
 					synchronized(request){
 						request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
 						HTTPResponseData res;
