@@ -27,11 +27,15 @@ import org.omegazero.net.socket.impl.PlainConnection;
 import org.omegazero.net.socket.impl.TLSConnection;
 import org.omegazero.net.util.TrustManagerUtil;
 import org.omegazero.proxy.config.ProxyConfiguration;
-import org.omegazero.proxy.http.engineimpl.HTTP1;
+import org.omegazero.proxy.http.HTTPEngine;
 
+@SuppressWarnings("unchecked")
 class Defaults {
 
 	private static final Logger logger = LoggerUtil.createLogger();
+
+	private static final Class<? extends HTTPEngine> http1Impl; // TODO: move http1 impl to plugin
+
 
 	protected static void registerProxyDefaults(Proxy proxy) {
 		ProxyConfiguration config = proxy.getConfig();
@@ -59,13 +63,22 @@ class Defaults {
 
 		proxy.addHTTPEngineSelector((connection) -> {
 			if(connection instanceof PlainConnection)
-				return HTTP1.class;
+				return http1Impl;
 			else if(connection instanceof TLSConnection){
 				String alpnProtocolName = ((TLSConnection) connection).getAlpnProtocol();
 				if(alpnProtocolName == null || alpnProtocolName.equals("http/1.1"))
-					return HTTP1.class;
+					return http1Impl;
 			}
 			return null;
 		});
+	}
+
+
+	static{
+		try{
+			http1Impl = (Class<? extends HTTPEngine>) Class.forName("org.omegazero.proxy.http1.HTTP1");
+		}catch(ClassNotFoundException e){
+			throw new RuntimeException(e);
+		}
 	}
 }

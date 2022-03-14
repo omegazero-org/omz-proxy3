@@ -13,6 +13,7 @@ steps:
   - artifact-dl-java maven/org.json:json:20211205
   - artifact-dl-java omz/org.omegazero.common:omz-common:release
   - artifact-dl-java omz/org.omegazero.net:omz-netlib:release
+  - artifact-dl-java omz/org.omegazero.http:omz-http:latest
 
 - name: prepare-source
   image: omz-ci-tools
@@ -26,12 +27,22 @@ steps:
   commands:
   - mkdir -p build/base/bin
   - find base/main/java -iname "*.java" > build/base/srcfiles
-  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar @build/base/srcfiles
+  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar @build/base/srcfiles
   - cp -r base/main/resources/* build/base/bin/
   - jar cf build-base.jar -C build/base/bin .
   depends_on:
   - prepare-dependencies
   - prepare-source
+
+- name: build-http1
+  image: openjdk:8
+  commands:
+  - mkdir -p build/http1/bin
+  - find http1/main/java -iname "*.java" > build/http1/srcfiles
+  - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
+  - jar cf build-http1.jar -C build/http1/bin .
+  depends_on:
+  - build-base
 
 - name: merge-jars
   image: openjdk:8
@@ -50,8 +61,10 @@ steps:
   commands:
   - artifact-push-java build-base.jar omz/org.omegazero.proxy:omz-proxy
   - artifact-push-java build-base-all.jar omz/org.omegazero.proxy:omz-proxy-all
+  - artifact-push-java build-http1.jar omz/org.omegazero.proxy:http1
   depends_on:
   - build-base
+  - build-http1
   - merge-jars
   environment:
     OMZ_ARTIFACT_PUSH_TOKEN:

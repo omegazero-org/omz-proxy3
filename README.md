@@ -76,6 +76,7 @@ This is a list of common properties for the default or a specific HTTP engine co
 | disableDefaultRequestLog | boolean | Disable the request log, containing the client IP address and HTTP request data. | no | false |
 | upstreamConnectionTimeout | number | The connection timeout in seconds when connecting to an upstream server. | no | 30 |
 | enableHeaders | boolean | Whether the proxy should add HTTP headers when proxying HTTP messages (for example "Via" and "X-Request-Id"). Note that this does not prevent plugins from adding HTTP headers. | no | true |
+| maxHeaderSize | number | The maximum size of a HTTP message header (the start line and all headers) in bytes. | no | 8192 |
 
 ### Example
 

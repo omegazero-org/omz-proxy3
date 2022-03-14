@@ -11,6 +11,10 @@
  */
 package org.omegazero.proxy.http;
 
+import org.omegazero.http.common.HTTPMessage;
+import org.omegazero.http.common.HTTPRequest;
+import org.omegazero.http.util.HTTPResponder;
+import org.omegazero.http.util.HTTPStatus;
 import org.omegazero.net.socket.SocketConnection;
 
 /**
@@ -18,60 +22,57 @@ import org.omegazero.net.socket.SocketConnection;
  * <br>
  * An instance of a <code>HTTPEngine</code> is associated with one connection by a client.
  */
-public interface HTTPEngine {
+public interface HTTPEngine extends HTTPResponder {
 
 	/**
+	 * Processes the given <b>data</b> received over the connection from the client.
 	 * 
 	 * @param data Incoming data of a client to process
 	 */
 	public void processData(byte[] data);
 
+	/**
+	 * Called when the connection to the client closes.
+	 */
 	public void close();
 
 	/**
+	 * Returns the {@link SocketConnection} to the client associated with this instance.
 	 * 
-	 * @return The {@link SocketConnection} to the client associated with this instance
+	 * @return The {@code SocketConnection} to the client
 	 */
 	public SocketConnection getDownstreamConnection();
 
-	/**
-	 * Responds to the given <b>request</b> with the given <b>response</b>, if the request has not already received a response.<br>
-	 * <br>
-	 * The engine may set additional, edit, or delete any headers in the HTTP response.
-	 * 
-	 * @param request  The request to respond to
-	 * @param response The response
-	 */
-	public void respond(HTTPMessage request, HTTPMessageData response);
 
 	/**
-	 * Responds to the given <b>request</b> with a new HTTP response with the given <b>status</b>, <b>data</b> and <b>headers</b>, if the request has not already received a
-	 * response.<br>
-	 * <br>
-	 * In the <b>headers</b> array, each value at an even index (starting at 0) is a header key (name), followed by the values at odd indices. If the array length is not a
-	 * multiple of 2, the last element is ignored.<br>
-	 * For example an array like <code>{"x-example", "123", "x-another-header", "value here"}</code> will set two headers in the response with names "x-example" and
-	 * "x-another-header" and values "123" and "value here", respectively.<br>
-	 * The engine may set additional, edit, or delete any headers in the HTTP response.
+	 * Selects an appropriate {@link HTTPErrdoc} template and generates a response body using it.
+	 * <p>
+	 * The title is selected from {@link HTTPStatus#STATUS_NAMES} based on the given <b>status</b>; if the given <b>status</b> is not defined by {@link HTTPStatus}, behavior
+	 * is undefined. The resulting body is sent as a HTTP response with the given <b>status</b> and <b>headers</b>.
 	 * 
 	 * @param request The request to respond to
-	 * @param status  The status code of the response
-	 * @param data    The data to send in the response
-	 * @param headers Headers to send in the response. See explanation in description
+	 * @param status The status code of the response
+	 * @param message Error message
+	 * @param headers Headers to send in the response. See {@link #respond(HTTPMessage, int, byte[], String...)} for more information
+	 * @since 3.6.1
+	 * @see #respondError(HTTPRequest, int, String, String, String...)
 	 */
-	public void respond(HTTPMessage request, int status, byte[] data, String... headers);
+	public default void respondError(HTTPRequest request, int status, String message, String... headers) {
+		this.respondError(request, status, HTTPStatus.STATUS_NAMES[status], message, headers);
+	}
 
 	/**
-	 * Selects an appropriate {@link HTTPErrdoc} template and generates a response body using it. The resulting body is sent as a HTTP response with the given <b>status</b>
-	 * and <b>headers</b>.
+	 * Selects an appropriate {@link HTTPErrdoc} template and generates a response body using it.
+	 * <p>
+	 * The resulting body is sent as a HTTP response with the given <b>status</b> and <b>headers</b>.
 	 * 
 	 * @param request The request to respond to
-	 * @param status  The status code of the response
-	 * @param title   Title of the error message
+	 * @param status The status code of the response
+	 * @param title Title of the error message
 	 * @param message Error message
 	 * @param headers Headers to send in the response. See {@link #respond(HTTPMessage, int, byte[], String...)} for more information
 	 * @see HTTPErrdoc#generate(int, String, String, String, String)
 	 * @see org.omegazero.proxy.core.Proxy#getErrdocForAccept(String)
 	 */
-	public void respondError(HTTPMessage request, int status, String title, String message, String... headers);
+	public void respondError(HTTPRequest request, int status, String title, String message, String... headers);
 }

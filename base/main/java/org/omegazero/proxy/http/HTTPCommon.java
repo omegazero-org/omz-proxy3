@@ -19,61 +19,14 @@ import java.util.Locale;
 import java.util.Random;
 
 import org.omegazero.common.util.PropertyUtil;
+import org.omegazero.http.common.HTTPMessage;
+import org.omegazero.http.common.HTTPRequest;
+import org.omegazero.http.common.HTTPResponse;
+import org.omegazero.http.common.InvalidHTTPMessageException;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.proxy.core.Proxy;
 
 public final class HTTPCommon {
-
-	public static final int STATUS_CONTINUE = 100;
-	public static final int STATUS_SWITCHING_PROTOCOLS = 101;
-	public static final int STATUS_PROCESSING = 102;
-	public static final int STATUS_OK = 200;
-	public static final int STATUS_CREATED = 201;
-	public static final int STATUS_ACCEPTED = 202;
-	public static final int STATUS_NON_AUTHORITATIVE = 203;
-	public static final int STATUS_NO_CONTENT = 204;
-	public static final int STATUS_RESET_CONTENT = 205;
-	public static final int STATUS_PARTIAL_CONTENT = 206;
-	public static final int STATUS_MULTIPLE_CHOICES = 300;
-	public static final int STATUS_MOVED_PERMANENTLY = 301;
-	public static final int STATUS_FOUND = 302;
-	public static final int STATUS_SEE_OTHER = 303;
-	public static final int STATUS_NOT_MODIFIED = 304;
-	public static final int STATUS_TEMPORARY_REDIRECT = 307;
-	public static final int STATUS_PERMANENT_REDIRECT = 308;
-	public static final int STATUS_BAD_REQUEST = 400;
-	public static final int STATUS_UNAUTHORIZED = 401;
-	public static final int STATUS_FORBIDDEN = 403;
-	public static final int STATUS_NOT_FOUND = 404;
-	public static final int STATUS_METHOD_NOT_ALLOWED = 405;
-	public static final int STATUS_NOT_ACCEPTABLE = 406;
-	public static final int STATUS_PROXY_AUTHENTICATION_REQUIRED = 407;
-	public static final int STATUS_REQUEST_TIMEOUT = 408;
-	public static final int STATUS_CONFLICT = 409;
-	public static final int STATUS_GONE = 410;
-	public static final int STATUS_LENGTH_REQUIRED = 411;
-	public static final int STATUS_PRECONDITION_REQUIRED = 412;
-	public static final int STATUS_PAYLOAD_TOO_LARGE = 413;
-	public static final int STATUS_URI_TOO_LONG = 414;
-	public static final int STATUS_UNSUPPORTED_MEDIA_TYPE = 415;
-	public static final int STATUS_RANGE_NOT_SATISFIABLE = 416;
-	public static final int STATUS_EXPECTATION_FAILED = 417;
-	public static final int STATUS_IM_A_TEAPOT = 418;
-	public static final int STATUS_UPGRADE_REQUIRED = 426;
-	public static final int STATUS_PRECONDITION_FAILED = 428;
-	public static final int STATUS_TOO_MANY_REQUESTS = 429;
-	public static final int STATUS_REQUEST_HEADER_FIELDS_TOO_LARGE = 431;
-	public static final int STATUS_UNAVAILABLE_FOR_LEGAL_REASONS = 451;
-	public static final int STATUS_INTERNAL_SERVER_ERROR = 500;
-	public static final int STATUS_NOT_IMPLEMENTED = 501;
-	public static final int STATUS_BAD_GATEWAY = 502;
-	public static final int STATUS_SERVICE_UNAVAILABLE = 503;
-	public static final int STATUS_GATEWAY_TIMEOUT = 504;
-	public static final int STATUS_HTTP_VERSION_NOT_SUPPORTED = 505;
-	public static final int STATUS_VARIANT_ALSO_NEGOTIATES = 506;
-	public static final int STATUS_LOOP_DETECTED = 508;
-	public static final int STATUS_NOT_EXTENDED = 510;
-	public static final int STATUS_NETWORK_AUTHENTICATION_REQUIRED = 511;
 
 	private static final Random RANDOM = new Random();
 	public static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
@@ -81,12 +34,24 @@ public final class HTTPCommon {
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 
-	private static final String UPSTREAM_CONNECT_ERROR_MESSAGE = "An error occurred while connecting to the upstream server";
-	private static final String UPSTREAM_ERROR_MESSAGE = "Error in connection to upstream server";
+	public static final String ATTACHMENT_KEY_REQUEST_ID = "engine_requestId";
+
+	public static final String MSG_BAD_REQUEST = "The proxy server did not understand the request";
+	public static final String MSG_NO_SERVER = "No appropriate upstream server was found for this request";
+	public static final String MSG_REQUEST_TIMEOUT = "The client did not complete the request in time";
+	public static final String MSG_SERVER_ERROR = "An unexpected internal error has occurred";
+	public static final String MSG_UPSTREAM_CONNECT_FAILED = "An error occurred while connecting to the upstream server";
+	public static final String MSG_UPSTREAM_CONNECT_TIMEOUT = "Connection to the upstream server timed out";
+	public static final String MSG_UPSTREAM_RESPONSE_TIMEOUT = "The upstream server took too long to respond";
+	public static final String MSG_UPSTREAM_CONNECTION_ERROR = "An error occurred in the connection to the upstream server";
+	public static final String MSG_UPSTREAM_CONNECTION_CLOSED = "Connection to the upstream server closed unexpectedly";
+	public static final String MSG_PROTO_NOT_SUPPORTED = "Unable to proxy request because the upstream server does not support ";
+
 
 	/**
+	 * Generates a date string formatted for use in the <i>Date</i> HTTP header.
 	 * 
-	 * @return A date string formatted for use in the <i>Date</i> HTTP header
+	 * @return The date string
 	 */
 	public static String dateString() {
 		return DATE_HEADER_FORMATTER.format(ZonedDateTime.now());
@@ -108,6 +73,12 @@ public final class HTTPCommon {
 		return Integer.toHexString(nf);
 	}
 
+	/**
+	 * Generates a pseudo-random request ID from the given parameters.
+	 * 
+	 * @param connection The remote connection
+	 * @return The request ID
+	 */
 	public static String requestId(SocketConnection connection) {
 		StringBuilder sb = new StringBuilder(32);
 		int n = RANDOM.nextInt();
@@ -118,6 +89,12 @@ public final class HTTPCommon {
 		return sb.toString();
 	}
 
+	/**
+	 * Shortens a request ID generated by {@link #requestId(SocketConnection)} to 8 characters, used in log outputs.
+	 * 
+	 * @param full The full request ID
+	 * @return The shortened request ID
+	 */
 	public static String shortenRequestId(String full) {
 		return full.substring(0, 8);
 	}
@@ -126,31 +103,32 @@ public final class HTTPCommon {
 	 * Sets several common HTTP headers.
 	 * 
 	 * @param proxy The proxy instance
-	 * @param msg   The HTTP message to add headers to
+	 * @param msg The HTTP message to add headers to
 	 */
 	public static void setDefaultHeaders(Proxy proxy, HTTPMessage msg) {
-		msg.appendHeader("via", msg.getVersion() + " " + proxy.getInstanceName(), ", ");
-		msg.appendHeader("x-request-id", msg.getRequestId(), ",");
+		msg.appendHeader("via", msg.getHttpVersion() + " " + proxy.getInstanceName(), ", ");
+		msg.appendHeader("x-request-id", (String) (msg instanceof HTTPRequest ? msg : msg.getOther()).getAttachment(ATTACHMENT_KEY_REQUEST_ID), ",");
 	}
 
 	/**
+	 * Generates an appropriate error message string from the given {@code Throwable} that occurred on an upstream connection.
 	 * 
 	 * @param e An error in an upstream connection
 	 * @return An error message created from the given exception
 	 */
 	public static String getUpstreamErrorMessage(Throwable e) {
 		if(e instanceof javax.net.ssl.SSLHandshakeException)
-			return UPSTREAM_CONNECT_ERROR_MESSAGE + ": TLS handshake error";
+			return MSG_UPSTREAM_CONNECT_FAILED + ": TLS handshake error";
 		else if(e instanceof java.net.ConnectException)
-			return UPSTREAM_CONNECT_ERROR_MESSAGE + ": " + e.getMessage();
+			return MSG_UPSTREAM_CONNECT_FAILED + ": " + e.getMessage();
 		else if(e instanceof java.net.SocketException)
-			return UPSTREAM_ERROR_MESSAGE + ": " + e.getMessage();
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": " + e.getMessage();
 		else if(e instanceof InvalidHTTPMessageException)
 			return "Invalid HTTP response from upstream server";
 		else if(e instanceof java.io.IOException)
-			return UPSTREAM_ERROR_MESSAGE + ": Socket error";
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": IO error";
 		else
-			return UPSTREAM_ERROR_MESSAGE + ": Unexpected error";
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": Unexpected error";
 	}
 
 
@@ -158,17 +136,17 @@ public final class HTTPCommon {
 	 * Sets the response of the given <b>request</b> to <b>response</b> atomically and returns <code>true</code> if successful or <code>false</code> if the given request
 	 * already has a response associated with it.
 	 * 
-	 * @param request  The request
+	 * @param request The request
 	 * @param response The response
 	 * @return <code>true</code> if successful, <code>false</code> if the request already had a response
 	 * @since 3.3.1
 	 */
-	public static boolean setRequestResponse(HTTPMessage request, HTTPMessage response) {
+	public static boolean setRequestResponse(HTTPRequest request, HTTPResponse response) {
 		if(request != null){
 			synchronized(request){
-				if(request.getCorrespondingMessage() != null)
+				if(request.hasResponse())
 					return false;
-				request.setCorrespondingMessage(response);
+				request.setOther(response);
 			}
 		}
 		return true;
@@ -183,56 +161,24 @@ public final class HTTPCommon {
 	 * <li>If the response should not contain a response body and <b>data</b> is empty, any <i>Content-Length</i> header is deleted</li>
 	 * </ul>
 	 * 
-	 * @param request  The request that caused the response. May be <code>null</code>
+	 * @param request The request that caused the response. May be <code>null</code>
 	 * @param response The response
-	 * @param data     Data of the response
+	 * @param data Data of the response
 	 * @return Possibly edited <b>data</b>
 	 * @throws IllegalArgumentException If the response should not contain a response body, the <b>request</b> is not made with the <i>HEAD</i> method and data is non-empty
 	 * @since 3.3.1
 	 */
-	public static byte[] prepareHTTPResponse(HTTPMessage request, HTTPMessage response, byte[] data) {
+	public static byte[] prepareHTTPResponse(HTTPRequest request, HTTPResponse response, byte[] data) {
 		if(request != null && request.getMethod().equals("HEAD")){
 			if(data.length > 0)
 				data = new byte[0];
 			response.deleteHeader("content-length");
-		}else if(HTTPCommon.hasResponseBody(request, response)){
+		}else if(response.hasResponseBody(request)){
 			response.setHeader("content-length", String.valueOf(data.length));
 		}else if(data.length > 0){
 			throw new IllegalArgumentException("Response with status " + response.getStatus() + " must not have a response body");
 		}else
 			response.deleteHeader("content-length");
 		return data;
-	}
-
-
-	/**
-	 * 
-	 * @param status A HTTP status code
-	 * @return <code>true</code> if a response with the given status code should contain a response
-	 * @since 3.3.1
-	 * @see #hasResponseBody(HTTPMessage, HTTPMessage)
-	 */
-	public static boolean hasResponseBody(int status) {
-		return !((status >= 100 && status <= 199) || status == 204 || status == 304);
-	}
-
-	/**
-	 * 
-	 * @param request  A HTTP request. May be <code>null</code>
-	 * @param response A HTTP response
-	 * @return <code>true</code> if the <b>response</b> initiated by the given <b>request</b> should contain a response body
-	 * @since 3.3.1
-	 * @see #hasResponseBody(int)
-	 */
-	public static boolean hasResponseBody(HTTPMessage request, HTTPMessage response) {
-		// rfc 7230 section 3.3.3
-		int status = response.getStatus();
-		if(request != null){
-			if(request.getMethod().equals("HEAD"))
-				return false;
-			if(request.getMethod().equals("CONNECT") && status >= 200 && status <= 299)
-				return false;
-		}
-		return hasResponseBody(status);
 	}
 }

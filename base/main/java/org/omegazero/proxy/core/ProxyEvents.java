@@ -14,10 +14,12 @@ package org.omegazero.proxy.core;
 import org.omegazero.common.eventbus.Event;
 import org.omegazero.common.eventbus.EventBus;
 import org.omegazero.common.eventbus.EventResult;
+import org.omegazero.http.common.HTTPMessageTrailers;
+import org.omegazero.http.common.HTTPRequestData;
+import org.omegazero.http.common.HTTPResponseData;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.proxy.http.HTTPMessage;
-import org.omegazero.proxy.http.HTTPMessageData;
-import org.omegazero.proxy.http.HTTPMessageTrailers;
+import org.omegazero.proxy.http.ProxyHTTPRequest;
+import org.omegazero.proxy.http.ProxyHTTPResponse;
 import org.omegazero.proxy.net.UpstreamServer;
 
 public final class ProxyEvents {
@@ -28,32 +30,35 @@ public final class ProxyEvents {
 	public static final Event DOWNSTREAM_CONNECTION = new Event("onDownstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event DOWNSTREAM_CONNECTION_CLOSED = new Event("onDownstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
 	public static final Event INVALID_HTTP_REQUEST = new Event("onInvalidHTTPRequest", new Class<?>[] { SocketConnection.class, byte[].class });
-	public static final Event INVALID_UPSTREAM_SERVER = new Event("onInvalidUpstreamServer", new Class<?>[] { SocketConnection.class, HTTPMessage.class });
+	public static final Event INVALID_UPSTREAM_SERVER = new Event("onInvalidUpstreamServer", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class });
 	public static final Event INVALID_HTTP_RESPONSE = new Event("onInvalidHTTPResponse",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, byte[].class });
-	public static final Event HTTP_REQUEST_PRE_LOG = new Event("onHTTPRequestPreLog", new Class<?>[] { SocketConnection.class, HTTPMessage.class });
-	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
-	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
-	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, byte[].class });
+	public static final Event HTTP_REQUEST_PRE_LOG = new Event("onHTTPRequestPreLog", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class });
+	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class });
+	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class });
+	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPRequestData.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST_TRAILERS = new Event("onHTTPRequestTrailers",
 			new Class<?>[] { SocketConnection.class, HTTPMessageTrailers.class, UpstreamServer.class }); // since 3.4.1
-	public static final Event HTTP_REQUEST_ENDED = new Event("onHTTPRequestEnded", new Class<?>[] { SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
+	public static final Event HTTP_REQUEST_ENDED = new Event("onHTTPRequestEnded", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE = new Event("onHTTPResponse",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPResponse.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_DATA = new Event("onHTTPResponseData",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessageData.class, UpstreamServer.class });
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPResponseData.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_TRAILERS = new Event("onHTTPResponseTrailers",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessageTrailers.class, UpstreamServer.class }); // since 3.4.1
 	public static final Event HTTP_RESPONSE_ENDED = new Event("onHTTPResponseEnded",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class });
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPResponse.class, UpstreamServer.class });
 	public static final Event HTTP_FORWARD_FAILED = new Event("onHTTPForwardFailed",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPMessage.class, UpstreamServer.class }); // since 3.4.1
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class }); // since 3.4.1
+	public static final Event HTTP_RESPONSE_TIMEOUT = new Event("onHTTPResponseTimeout",
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class }); // since 3.6.1
 	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);
 	public static final Event UPSTREAM_CONNECTION = new Event("onUpstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_CLOSED = new Event("onUpstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_ERROR = new Event("onUpstreamConnectionError", new Class<?>[] { SocketConnection.class, Throwable.class });
 	public static final Event UPSTREAM_CONNECTION_TIMEOUT = new Event("onUpstreamConnectionTimeout", new Class<?>[] { SocketConnection.class });
 	public static final Event MISSING_TLS_DATA = new Event("getMissingTLSData", new Class<?>[] { String.class, String.class }, java.util.Map.Entry.class);
+
 
 	public static int runEvent(EventBus eventBus, Event event, Object... args) {
 		int c;

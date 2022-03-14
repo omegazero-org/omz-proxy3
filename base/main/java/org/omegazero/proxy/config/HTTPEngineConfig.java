@@ -16,6 +16,11 @@ import java.util.Map;
 
 import org.omegazero.common.config.ConfigObject;
 
+/**
+ * Contains configuration variables for {@link org.omegazero.proxy.http.HTTPEngine}s.
+ * 
+ * @since 3.3.1
+ */
 public class HTTPEngineConfig extends ConfigObject {
 
 	private static final long serialVersionUID = 1L;
@@ -24,6 +29,7 @@ public class HTTPEngineConfig extends ConfigObject {
 	private transient boolean disableDefaultRequestLog;
 	private transient int upstreamConnectionTimeout;
 	private transient boolean enableHeaders;
+	private transient int maxHeaderSize;
 
 	public HTTPEngineConfig(ConfigObject co) {
 		this(co.copyData());
@@ -35,32 +41,50 @@ public class HTTPEngineConfig extends ConfigObject {
 		this.readDefaults();
 	}
 
+
 	private void readDefaults() {
 		this.disableDefaultRequestLog = super.optBoolean("disableDefaultRequestLog", false);
 		this.upstreamConnectionTimeout = super.optInt("upstreamConnectionTimeout", 30) * 1000;
 		this.enableHeaders = super.optBoolean("enableHeaders", true);
+		this.maxHeaderSize = super.optInt("maxHeaderSize", 8192);
 	}
 
 
+	/**
+	 * Returns whether the default request log messages should be disabled.
+	 * 
+	 * @return {@code true} to disable the default request log messages
+	 */
 	public boolean isDisableDefaultRequestLog() {
 		return this.disableDefaultRequestLog;
 	}
 
 	/**
+	 * Returns the maximum time in milliseconds to wait until a connection to an upstream server is established before the connection attempt should be cancelled and an error
+	 * be reported.
 	 * 
-	 * @return The maximum time in milliseconds to wait until a connection to an upstream server is established before the connection attempt should be cancelled and an error
-	 *         be reported
+	 * @return The upstream connection timeout
 	 */
 	public int getUpstreamConnectionTimeout() {
 		return this.upstreamConnectionTimeout;
 	}
 
 	/**
+	 * Returns whether a set of default headers should be added to proxied HTTP messages.
 	 * 
-	 * @return <code>true</code> if this headers should be added to proxied HTTP messages
+	 * @return {@code true} to add default HTTP headers
 	 */
 	public boolean isEnableHeaders() {
 		return this.enableHeaders;
+	}
+
+	/**
+	 * Returns the maximum size of a HTTP message header (the start line and all headers) in bytes.
+	 * 
+	 * @return The maximum HTTP message size
+	 */
+	public int getMaxHeaderSize() {
+		return this.maxHeaderSize;
 	}
 
 
