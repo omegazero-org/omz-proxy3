@@ -108,6 +108,8 @@ This configuration listens on the default local address and HTTP/HTTPS ports and
 | shutdownTimeout | number | The maximum time in milliseconds to wait for non-daemon threads to exit before forcibly terminating the JVM. This value is evaluated when the shutdown procedure starts. | 2000 |
 | sni.maxCacheNameLen | number | The maximum server name length to cache for SNI. | 64 |
 | sni.maxCacheMappings | number | The maximum number of entries in the SNI name cache. | 4096 |
+| http.iaddrHashSalt | number | A 32-bit salt used for generating request IDs. | 42 |
+| net.upstreamSocketErrorDebug | boolean | Whether log messages of upstream connection failures should be printed with log level *DEBUG* instead of *WARN*. Similar to [`org.omegazero.net.socketErrorDebug`](https://docs.omegazero.org/javadoc/omz-net-lib/org/omegazero/net/common/NetCommon.html#SOCKET_ERROR_DEBUG). | false |
 
 
 
