@@ -14,6 +14,7 @@ package org.omegazero.proxy.core;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import org.omegazero.common.eventbus.Event;
@@ -23,62 +24,61 @@ import org.omegazero.net.client.PlainTCPClientManager;
 import org.omegazero.net.client.TLSClientManager;
 import org.omegazero.net.server.PlainTCPServer;
 import org.omegazero.net.server.TLSServer;
-import org.omegazero.net.socket.impl.PlainConnection;
-import org.omegazero.net.socket.impl.TLSConnection;
 import org.omegazero.net.util.TrustManagerUtil;
 import org.omegazero.proxy.config.ProxyConfiguration;
-import org.omegazero.proxy.http.HTTPEngine;
 
-@SuppressWarnings("unchecked")
 class Defaults {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	private static final Class<? extends HTTPEngine> http1Impl; // TODO: move http1 impl to plugin
-
-
 	protected static void registerProxyDefaults(Proxy proxy) {
+		Set<String> featureSet = new java.util.HashSet<>();
+		List<Object> featureSetRes = proxy.dispatchEventRes(new Event("proxy_requiredFeatureSet", false, new Class<?>[0], String.class, true)).getReturnValues();
+		for(Object o : featureSetRes){
+			if(o != null){
+				String[] opts = ((String) o).split(",");
+				for(String opt : opts)
+					featureSet.add(opt);
+			}
+		}
+		logger.debug("Defaults init with feature set: ", featureSet);
+
+		Consumer<Runnable> serverTaskHandler = null; // change to proxy worker when concurrency issues are resolved (is that ever going to happen?) (is this even necessary?)
 		ProxyConfiguration config = proxy.getConfig();
-		Consumer<Runnable> serverTaskHandler = null; // change to proxy worker when synchronization issues are resolved (is that ever going to happen?)
-		if(config.getPortsPlain().size() > 0)
-			proxy.registerServerInstance(
-					new PlainTCPServer(config.getBindAddresses(), config.getPortsPlain(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout()));
-		if(config.getPortsTls().size() > 0){
-			List<Object> alpnNames = proxy.dispatchEventRes(new Event("_proxyRegisterALPNOption", false, new Class<?>[0], String.class, true)).getReturnValues();
-			alpnNames.add("http/1.1");
+		List<java.net.InetAddress> bindAddresses = config.getBindAddresses();
+		if(featureSetContains(featureSet, "tcp.server.plain") && config.getPortsPlain().size() > 0)
+			proxy.registerServerInstance(new PlainTCPServer(bindAddresses, config.getPortsPlain(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout()));
+		if(featureSetContains(featureSet, "tcp.server.tls") && config.getPortsTls().size() > 0){
+			List<Object> alpnNames = proxy.dispatchEventRes(new Event("proxy_registerALPNOption", false, new Class<?>[0], String.class, true)).getReturnValues();
 			logger.debug("Registered TLS ALPN options: ", alpnNames);
-			TLSServer tlsServer = new TLSServer(config.getBindAddresses(), config.getPortsTls(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout(),
+			TLSServer tlsServer = new TLSServer(bindAddresses, config.getPortsTls(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout(),
 					proxy.getSslContext());
 			tlsServer.setSupportedApplicationLayerProtocols(alpnNames.toArray(new String[alpnNames.size()]));
 			proxy.registerServerInstance(tlsServer);
 		}
 
-		proxy.registerClientManager(new PlainTCPClientManager(serverTaskHandler));
-		try{
-			proxy.registerClientManager(
-					new TLSClientManager(serverTaskHandler, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates())));
-		}catch(GeneralSecurityException | IOException e){
-			throw new RuntimeException("Error while loading trusted certificates", e);
-		}
-
-		proxy.addHTTPEngineSelector((connection) -> {
-			if(connection instanceof PlainConnection)
-				return http1Impl;
-			else if(connection instanceof TLSConnection){
-				String alpnProtocolName = ((TLSConnection) connection).getAlpnProtocol();
-				if(alpnProtocolName == null || alpnProtocolName.equals("http/1.1"))
-					return http1Impl;
+		if(featureSetContains(featureSet, "tcp.client.plain"))
+			proxy.registerClientManager(new PlainTCPClientManager(serverTaskHandler));
+		if(featureSetContains(featureSet, "tcp.client.tls")){
+			try{
+				proxy.registerClientManager(
+						new TLSClientManager(serverTaskHandler, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates())));
+			}catch(GeneralSecurityException | IOException e){
+				throw new RuntimeException("Error while loading trusted certificates", e);
 			}
-			return null;
-		});
+		}
 	}
 
-
-	static{
-		try{
-			http1Impl = (Class<? extends HTTPEngine>) Class.forName("org.omegazero.proxy.http1.HTTP1");
-		}catch(ClassNotFoundException e){
-			throw new RuntimeException(e);
+	private static boolean featureSetContains(Set<String> featureSet, String option) {
+		if(featureSet.contains(option))
+			return true;
+		int cs;
+		while((cs = option.lastIndexOf('.')) > 0){
+			option = option.substring(0, cs);
+			String fw = option + ".*";
+			if(featureSet.contains(fw))
+				return true;
 		}
+		return false;
 	}
 }

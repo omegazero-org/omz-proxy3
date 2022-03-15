@@ -48,7 +48,8 @@ public class HTTP1 implements HTTPEngine {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
-	private static final String[] HTTP1_ALPN = new String[] { "http/1.1" };
+	static final String HTTP1_ALPN_NAME = "http/1.1";
+	private static final String[] HTTP1_ALPN = new String[] { HTTP1_ALPN_NAME };
 	private static final byte[] EMPTY_CHUNK = new byte[] { '0', 0xd, 0xa, 0xd, 0xa };
 
 	private static final String ATTACHMENT_KEY_DECHUNKER = "engine_dechunker";

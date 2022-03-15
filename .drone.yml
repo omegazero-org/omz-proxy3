@@ -40,6 +40,7 @@ steps:
   - mkdir -p build/http1/bin
   - find http1/main/java -iname "*.java" > build/http1/srcfiles
   - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
+  - cp -r http1/main/resources/* build/http1/bin/
   - jar cf build-http1.jar -C build/http1/bin .
   depends_on:
   - build-base
