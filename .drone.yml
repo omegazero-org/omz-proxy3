@@ -21,6 +21,7 @@ steps:
   commands:
   - mkdir build
   - setversion base/main/java/org/omegazero/proxy/core/Proxy.java
+  - setversion http1/main/resources/plugin.cfg
 
 - name: build-base
   image: openjdk:8
