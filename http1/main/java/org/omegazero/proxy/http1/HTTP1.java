@@ -38,13 +38,13 @@ import org.omegazero.proxy.core.Proxy;
 import org.omegazero.proxy.core.ProxyEvents;
 import org.omegazero.proxy.http.HTTPCommon;
 import org.omegazero.proxy.http.HTTPEngine;
-import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.net.UpstreamServer;
+import org.omegazero.proxy.util.HTTPEngineResponderMixin;
 import org.omegazero.proxy.util.ProxyUtil;
 
 import static org.omegazero.http.util.HTTPStatus.*;
 
-public class HTTP1 implements HTTPEngine {
+public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
@@ -138,10 +138,15 @@ public class HTTP1 implements HTTPEngine {
 		}
 
 		HTTPResponse response = responsedata.getHttpMessage();
-		byte[] data = responsedata.getData();
 		if(!HTTPCommon.setRequestResponse(request, response))
 			return;
+		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", response.getStatus());
+
+		if(!response.headerExists("connection"))
+			response.setHeader("connection", "close");
 		response.deleteHeader("transfer-encoding");
+
+		byte[] data = responsedata.getData();
 		data = HTTPCommon.prepareHTTPResponse(request, response, data);
 		if(request != null){
 			synchronized(request){
@@ -162,53 +167,21 @@ public class HTTP1 implements HTTPEngine {
 
 	@Override
 	public void respond(HTTPRequest request, int status, byte[] data, String... headers) {
-		if(request != null && request.hasResponse())
-			return;
-		this.respondEx(request, status, data, headers);
+		this.respondEx(this.proxy, request, status, data, headers);
 	}
 
 	@Override
 	public void respondError(HTTPRequest request, int status, String title, String message, String... headers) {
-		if(request != null && request.hasResponse())
-			return;
-		String accept = request != null ? request.getHeader("accept") : null;
-		HTTPErrdoc errdoc = this.proxy.getErrdocForAccept(accept);
-		byte[] errdocData = errdoc
-				.generate(status, title, message, request != null ? request.getHeader("x-request-id") : null, this.downstreamConnection.getApparentRemoteAddress().toString())
-				.getBytes();
-		this.respondEx(request, status, errdocData, headers, "content-type", errdoc.getMimeType());
+		this.respondError(this.proxy, request, status, title, message, headers);
 	}
-
 
 	private void respondUNetError(HTTPRequest request, int status, String message, SocketConnection uconn, UpstreamServer userver) {
-		if(request.hasResponse())
-			return;
-		this.proxy.dispatchEvent(ProxyEvents.HTTP_FORWARD_FAILED, this.downstreamConnection, uconn, request, userver);
-		if(!request.hasResponse())
-			this.respondError(request, status, message);
+		this.respondUNetError(this.proxy, request, status, message, uconn, userver);
 	}
 
-
-	private void respondEx(HTTPRequest request, int status, byte[] data, String[] h1, String... hEx) {
-		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", status);
-		HTTPResponse response = new HTTPResponse(status, "HTTP/1.1", null);
-		for(int i = 0; i + 1 < hEx.length; i += 2){
-			response.setHeader(hEx[i], hEx[i + 1]);
-		}
-		for(int i = 0; i + 1 < h1.length; i += 2){
-			response.setHeader(h1[i], h1[i + 1]);
-		}
-
-		if(!response.headerExists("date"))
-			response.setHeader("date", HTTPCommon.dateString());
-		if(!response.headerExists("connection"))
-			response.setHeader("connection", "close");
-		response.setHeader("server", this.proxy.getInstanceName());
-		response.setHeader("x-proxy-engine", this.getClass().getSimpleName());
-		if(request != null)
-			response.setHeader("x-request-id", (String) request.getAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID));
-
-		this.respond(request, new HTTPResponseData(response, data));
+	@Override
+	public String getHTTPVersionName() {
+		return "HTTP/1.1";
 	}
 
 
