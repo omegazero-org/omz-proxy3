@@ -29,7 +29,7 @@ public class HTTP1Plugin {
 		return this.enable ? "tcp.*" : null;
 	}
 
-	@SubscribeEvent
+	@SubscribeEvent(priority = SubscribeEvent.Priority.LOW)
 	public String proxy_registerALPNOption() {
 		return this.enable ? HTTP1.HTTP1_ALPN_NAME : null;
 	}
