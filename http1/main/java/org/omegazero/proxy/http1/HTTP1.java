@@ -100,8 +100,10 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			this.respondError(this.currentRequest, STATUS_BAD_REQUEST, e.isMsgUserVisible() ? e.getMessage() : HTTPCommon.MSG_BAD_REQUEST);
 		}catch(Exception e){
 			if(this.currentRequest != null){
+				this.respondInternalError(e);
 				logger.error(this.downstreamConnectionDbgstr, " Error while processing packet: ", e);
-				this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
+				if(this.currentRequest != null) // response is still pending after respond above
+					this.endRequest(this.currentRequest);
 				this.downstreamConnection.close();
 			}else
 				throw e;
@@ -179,6 +181,14 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		this.respondUNetError(this.proxy, request, status, message, uconn, userver);
 	}
 
+	private void respondInternalError(Throwable e) {
+		try{
+			this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
+		}catch(Throwable e2){
+			e.addSuppressed(e2);
+		}
+	}
+
 	@Override
 	public String getHTTPVersionName() {
 		return "HTTP/1.1";
@@ -249,14 +259,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 						Tasks.clear(this.currentRequestTimeoutId);
 						this.currentRequestTimeoutId = -1;
 					}
-					synchronized(request){
-						request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
-						HTTPResponseData res;
-						if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
-							this.writeHTTPMsg(this.downstreamConnection, res.getHttpMessage(), res.getData());
-							this.currentRequest = null;
-						}
-					}
+					this.endRequest(request);
 				}
 			});
 			request.setAttachment(ATTACHMENT_KEY_DECHUNKER, dechunker);
@@ -299,8 +302,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 							this.currentUpstreamConnection.destroy();
 							this.responseReceiver.reset();
 						}catch(Exception e){
+							this.respondInternalError(e);
 							logger.error(this.currentUpstreamConnection.getAttachment(), " Error while handling response timeout: ", e);
-							this.downstreamConnection.close();
 						}
 					}, this.config.getResponseTimeout()).daemon().getId();
 					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
@@ -332,6 +335,17 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			logger.debug(this.downstreamConnectionDbgstr, " Request body format error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
 			this.respondError(this.currentRequest, STATUS_BAD_REQUEST, "Malformed request body");
 			dechunker.end();
+		}
+	}
+
+	private void endRequest(HTTPRequest request) {
+		synchronized(request){
+			request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
+			HTTPResponseData res;
+			if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
+				this.writeHTTPMsg(this.downstreamConnection, res.getHttpMessage(), res.getData());
+				this.currentRequest = null;
+			}
 		}
 	}
 
@@ -429,8 +443,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		try{
 			uconn = ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamSecurity, userver, HTTP1_ALPN);
 		}catch(IOException e){
+			this.respondInternalError(e);
 			logger.error("Connection failed: ", e);
-			this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 			return null;
 		}
 
@@ -446,11 +460,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
 		});
 		uconn.setOnError((e) -> {
-			if(e instanceof IOException)
-				logUNetError(uconn.getAttachment(), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
-			else
-				logger.error(uconn.getAttachment(), " Internal error: ", e);
-
+			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
 
@@ -461,7 +471,18 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 						this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 				}
 			}catch(Exception ue){
-				logger.error("Internal error while handling upstream connection error: ", ue);
+				e2 = ue;
+			}
+			if(e2 != null)
+				this.respondInternalError(e2);
+			if(e instanceof IOException){
+				logUNetError(uconn.getAttachment(), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
+				if(e2 != null)
+					logger.error(uconn.getAttachment(), " Internal error while handling upstream connection error: ", e2);
+			}else{
+				if(e2 != null)
+					e.addSuppressed(e2);
+				logger.error(uconn.getAttachment(), " Internal error: ", e);
 			}
 		});
 		uconn.setOnClose(() -> {
