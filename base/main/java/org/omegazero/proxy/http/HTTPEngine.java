@@ -47,7 +47,7 @@ public interface HTTPEngine extends HTTPResponder {
 	/**
 	 * Selects an appropriate {@link HTTPErrdoc} template and generates a response body using it.
 	 * <p>
-	 * The title is selected from {@link HTTPStatus#STATUS_NAMES} based on the given <b>status</b>; if the given <b>status</b> is not defined by {@link HTTPStatus}, behavior
+	 * The title is selected using {@link HTTPStatus#getStatusName(int)} based on the given <b>status</b>; if the given <b>status</b> is not defined by {@link HTTPStatus}, behavior
 	 * is undefined. The resulting body is sent as a HTTP response with the given <b>status</b> and <b>headers</b>.
 	 * 
 	 * @param request The request to respond to
@@ -58,7 +58,7 @@ public interface HTTPEngine extends HTTPResponder {
 	 * @see #respondError(HTTPRequest, int, String, String, String...)
 	 */
 	public default void respondError(HTTPRequest request, int status, String message, String... headers) {
-		this.respondError(request, status, HTTPStatus.STATUS_NAMES[status], message, headers);
+		this.respondError(request, status, HTTPStatus.getStatusName(status), message, headers);
 	}
 
 	/**

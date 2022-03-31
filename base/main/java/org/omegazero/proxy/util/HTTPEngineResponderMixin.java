@@ -76,7 +76,7 @@ public interface HTTPEngineResponderMixin {
 			return;
 		proxy.dispatchEvent(ProxyEvents.HTTP_FORWARD_FAILED, this.getDownstreamConnection(), uconn, request, userver);
 		if(!request.hasResponse())
-			this.respondError(proxy, request, status, HTTPStatus.STATUS_NAMES[status], message);
+			this.respondError(proxy, request, status, HTTPStatus.getStatusName(status), message);
 	}
 
 	/**
