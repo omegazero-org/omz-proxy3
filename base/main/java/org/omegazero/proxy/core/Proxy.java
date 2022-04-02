@@ -206,15 +206,11 @@ public final class Proxy {
 
 
 	private void loadPlugins(String[] pluginDirs, boolean dirPlugins) throws IOException {
-		logger.debug("Loading plugins");
 		this.pluginManager = new PluginManager();
 		int pluginFlags = dirPlugins ? PluginManager.ALLOW_DIRS : PluginManager.RECURSIVE;
 		for(String p : pluginDirs){
-			Path pluginDir = Paths.get(p);
-			if(Files.exists(pluginDir))
-				this.pluginManager.loadFromDirectory(pluginDir, pluginFlags);
-			else
-				logger.warn("Plugin directory '", pluginDir, "' does not exist");
+			logger.info("Loading plugins from '", p, "'");
+			this.pluginManager.loadFromPath(p, pluginFlags);
 		}
 
 		String[] pluginNames = new String[this.pluginManager.pluginCount()];
@@ -222,7 +218,7 @@ public final class Proxy {
 		this.pushPluginConfig();
 		for(Plugin p : this.pluginManager){
 			try{
-				logger.debug("Registering plugin class with event bus: ", p.getMainClassType().getName());
+				logger.trace("Registering plugin class at event bus: ", p.getMainClassType().getName());
 				String eventsList = p.getAdditionalOption("events");
 				String[] events;
 				if(eventsList != null)
