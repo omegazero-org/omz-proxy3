@@ -36,6 +36,8 @@ public class HTTP1Plugin {
 
 	@SubscribeEvent(priority = SubscribeEvent.Priority.HIGH)
 	public void onInit() {
+		if(!this.enable)
+			return;
 		Proxy.getInstance().addHTTPEngineSelector((connection) -> {
 			if(connection instanceof PlainConnection){
 				return HTTP1.class;
