@@ -64,6 +64,7 @@ steps:
   - (cd build/base/bin; unzip -uo ../../../json-20211205.jar)
   - (cd build/base/bin; unzip -uo ../../../omz-common-release.jar)
   - (cd build/base/bin; unzip -uo ../../../omz-netlib-release.jar)
+  - (cd build/base/bin; unzip -uo ../../../omz-http-latest.jar)
   - rm -r build/base/bin/META-INF
   - jar cf build-base-all.jar -C build/base/bin .
   depends_on:
