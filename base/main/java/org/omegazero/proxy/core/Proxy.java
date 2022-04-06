@@ -398,8 +398,6 @@ public final class Proxy {
 			if(c != null)
 				break;
 		}
-		if(c == null)
-			throw new UnsupportedOperationException("Did not find HTTPEngine for socket of type " + conn.getClass().getName());
 		return c;
 	}
 
@@ -425,16 +423,23 @@ public final class Proxy {
 			HTTPEngine engine = engineRef.get();
 			if(engine != null)
 				engine.close();
-			Proxy.this.dispatchEvent(ProxyEvents.DOWNSTREAM_CONNECTION_CLOSED, conn);
+			this.dispatchEvent(ProxyEvents.DOWNSTREAM_CONNECTION_CLOSED, conn);
 		});
 
 		this.dispatchEvent(ProxyEvents.DOWNSTREAM_CONNECTION, conn);
 		if(!conn.isConnected()) // connection might have been closed by an event handler
 			return;
 
-		HTTPEngine engine = this.createHTTPEngineInstance(this.selectHTTPEngine(conn), conn);
+		Class<? extends HTTPEngine> engineType = this.selectHTTPEngine(conn);
+		if(engineType == null){
+			logger.warn("Could not find HTTPEngine for socket of type " + conn.getClass().getName());
+			conn.destroy();
+			return;
+		}
+
+		HTTPEngine engine = this.createHTTPEngineInstance(engineType, conn);
 		engineRef.set(engine);
-		logger.debug(msgToProxy, " HTTPEngine type: ", engine.getClass().getName());
+		logger.debug(msgToProxy, " HTTPEngine type: ", engineType.getName());
 
 		conn.setOnData(engine::processData);
 	}
