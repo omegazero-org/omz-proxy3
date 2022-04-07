@@ -198,19 +198,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private void processPacket(byte[] data) throws InvalidHTTPMessageException {
 		assert Thread.holdsLock(this);
 		if(this.currentRequest == null){ // expecting a new request
-			if(this.currentRequestTimeoutId < 0){
-				this.currentRequestTimeoutId = Tasks.timeout(() -> {
-					logger.debug(this.downstreamConnectionDbgstr, " Request timeout");
-					try{
-						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TIMEOUT, this.downstreamConnection);
-						this.respondError(this.currentRequest, STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
-						this.requestReceiver.reset();
-					}catch(Exception e){
-						logger.error(this.downstreamConnectionDbgstr, " Error while handling request timeout: ", e);
-						this.downstreamConnection.close();
-					}
-				}, this.config.getRequestTimeout()).daemon().getId();
-			}
+			if(this.currentRequestTimeoutId < 0)
+				this.currentRequestTimeoutId = Tasks.timeout(this::handleRequestTimeout, this.config.getRequestTimeout()).daemon().getId();
 
 			int offset;
 			try{
@@ -221,6 +210,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			}
 			if(offset < 0)
 				return;
+
+			Tasks.clear(this.currentRequestTimeoutId);
 
 			HTTPRequest request = this.requestReceiver.get(org.omegazero.proxy.http.ProxyHTTPRequest::new);
 			this.requestReceiver.reset();
@@ -255,10 +246,6 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, this.currentUpstreamServer);
 				}
 				if(last){
-					if(this.currentRequestTimeoutId >= 0){
-						Tasks.clear(this.currentRequestTimeoutId);
-						this.currentRequestTimeoutId = -1;
-					}
 					this.endRequest(request);
 				}
 			});
@@ -291,24 +278,6 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 
 				this.writeHTTPMsg(uconn, request, null);
 
-				if(this.config.getResponseTimeout() > 0){
-					long tid = Tasks.timeout(() -> {
-						logUNetError(this.currentUpstreamConnection.getAttachment(), " Response timeout");
-						try{
-							this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, request,
-									this.currentUpstreamServer);
-							this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
-									this.currentUpstreamServer);
-							this.currentUpstreamConnection.destroy();
-							this.responseReceiver.reset();
-						}catch(Exception e){
-							this.respondInternalError(e);
-							logger.error(this.currentUpstreamConnection.getAttachment(), " Error while handling response timeout: ", e);
-						}
-					}, this.config.getResponseTimeout()).daemon().getId();
-					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
-				}
-
 				this.currentUpstreamConnection = uconn;
 				if(!uconn.hasConnected())
 					uconn.connect(this.config.getUpstreamConnectionTimeout());
@@ -338,6 +307,37 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		}
 	}
 
+	private void handleRequestTimeout() {
+		logger.debug(this.downstreamConnectionDbgstr, " Request timeout");
+		try{
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TIMEOUT, this.downstreamConnection, this.currentRequest);
+			if(this.currentRequest == null || !this.currentRequest.hasResponse())
+				this.respondError(this.currentRequest, STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
+			this.requestReceiver.reset();
+			if(this.currentRequest != null)
+				this.endRequest(this.currentRequest);
+			if(this.currentUpstreamConnection != null)
+				this.currentUpstreamConnection.close();
+		}catch(Exception e){
+			logger.error(this.downstreamConnectionDbgstr, " Error while handling request timeout: ", e);
+			this.downstreamConnection.close();
+		}
+	}
+
+	private void handleResponseTimeout() {
+		logUNetError(this.currentUpstreamConnection.getAttachment(), " Response timeout");
+		try{
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, this.currentRequest, this.currentUpstreamServer);
+			this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
+					this.currentUpstreamServer);
+			this.currentUpstreamConnection.destroy();
+			this.responseReceiver.reset();
+		}catch(Exception e){
+			this.respondInternalError(e);
+			logger.error(this.currentUpstreamConnection.getAttachment(), " Error while handling response timeout: ", e);
+		}
+	}
+
 	private void endRequest(HTTPRequest request) {
 		synchronized(request){
 			request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
@@ -345,6 +345,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
 				this.writeHTTPMsg(this.downstreamConnection, res.getHttpMessage(), res.getData());
 				this.currentRequest = null;
+			}else if(this.currentUpstreamConnection != null && this.config.getResponseTimeout() > 0){
+				long tid = Tasks.timeout(this::handleResponseTimeout, this.config.getResponseTimeout()).daemon().getId();
+				request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
 			}
 		}
 	}
