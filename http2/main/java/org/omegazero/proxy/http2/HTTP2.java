@@ -107,7 +107,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		if(initialWindowSize > 0)
 			settings.set(SETTINGS_INITIAL_WINDOW_SIZE, initialWindowSize);
 
-		settings.set(SETTINGS_MAX_HEADER_LIST_SIZE, config.optInt("maxHeadersSize", 16384));
+		settings.set(SETTINGS_MAX_HEADER_LIST_SIZE, config.getMaxHeaderSize());
 		settings.set(SETTINGS_MAX_CONCURRENT_STREAMS, config.optInt("maxConcurrentStreams", 100));
 		return settings;
 	}
