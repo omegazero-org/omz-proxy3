@@ -23,11 +23,13 @@ steps:
   - setversion base/main/java/org/omegazero/proxy/core/Proxy.java
   - setversion http1/main/resources/plugin.cfg
   - setversion http2/main/resources/plugin.cfg
+  - curl -G "https://omegazero.org/site/software/r/license_bin_full.php" --data-urlencode "srcurl=$DRONE_REPO_LINK/src/commit/$DRONE_COMMIT" > LICENSE_BIN
 
 - name: build-base
   image: openjdk:8
   commands:
-  - mkdir -p build/base/bin
+  - mkdir -p build/base/bin/META-INF
+  - cp LICENSE_BIN build/base/bin/META-INF/LICENSE
   - find base/main/java -iname "*.java" > build/base/srcfiles
   - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar @build/base/srcfiles
   - cp -r base/main/resources/* build/base/bin/
@@ -39,7 +41,8 @@ steps:
 - name: build-http1
   image: openjdk:8
   commands:
-  - mkdir -p build/http1/bin
+  - mkdir -p build/http1/bin/META-INF
+  - cp LICENSE_BIN build/http1/bin/META-INF/LICENSE
   - find http1/main/java -iname "*.java" > build/http1/srcfiles
   - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
   - cp -r http1/main/resources/* build/http1/bin/
@@ -51,7 +54,8 @@ steps:
   # use ECJ because of JDK-8139836
   image: openjdk-ecj:4.14
   commands:
-  - mkdir -p build/http2/bin
+  - mkdir -p build/http2/bin/META-INF
+  - cp LICENSE_BIN build/http2/bin/META-INF/LICENSE
   - ecj -verbose -d build/http2/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar -8 http2/main/java
   - cp -r http2/main/resources/* build/http2/bin/
   - jar cf build-http2.jar -C build/http2/bin .
@@ -61,11 +65,18 @@ steps:
 - name: merge-jars
   image: openjdk:8
   commands:
+  - mkdir build/base/licenses
+  - mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_proxy
   - (cd build/base/bin; unzip -uo ../../../json-20211205.jar)
+  - curl -G "https://raw.githubusercontent.com/stleary/JSON-java/master/LICENSE" > build/base/licenses/LICENSE_org_json
   - (cd build/base/bin; unzip -uo ../../../omz-common-release.jar)
+  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common"
   - (cd build/base/bin; unzip -uo ../../../omz-netlib-release.jar)
+  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net"
   - (cd build/base/bin; unzip -uo ../../../omz-http-latest.jar)
-  - rm -r build/base/bin/META-INF
+  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http"
+  - rm -r build/base/bin/META-INF/*
+  - mv build/base/licenses/* build/base/bin/META-INF
   - jar cf build-base-all.jar -C build/base/bin .
   depends_on:
   - build-base
