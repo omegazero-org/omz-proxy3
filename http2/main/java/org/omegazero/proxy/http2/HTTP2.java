@@ -140,6 +140,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 						throw new AssertionError(e);
 					}
 				}else{
+					logger.debug(this.downstreamConnectionDbgstr, " Invalid client preface");
 					this.downstreamConnection.destroy();
 					break;
 				}
@@ -288,7 +289,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			baseCloseHandler.accept(status);
 			if(usStream != null && !usStream.isClosed() && status != STATUS_NO_ERROR){
 				try{
-					usStream.rst(status);
+					usStream.rst(STATUS_CANCEL);
 				}catch(IOException e){
 					throw new AssertionError(e);
 				}
