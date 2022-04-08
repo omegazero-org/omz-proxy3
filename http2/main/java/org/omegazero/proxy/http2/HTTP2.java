@@ -8,7 +8,9 @@ package org.omegazero.proxy.http2;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Consumer;
 
+import org.omegazero.common.event.Tasks;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.http.common.HTTPRequest;
@@ -49,6 +51,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 	private static final String ATTACHMENT_KEY_UPSTREAM_SERVER = "engine_upstreamServer";
 	private static final String ATTACHMENT_KEY_REQUEST_FINISHED = "engine_finished";
 	private static final String ATTACHMENT_KEY_PENDING_RESPONSE = "engine_pendingresponse";
+	private static final String ATTACHMENT_KEY_RESPONSE_TIMEOUT = "engine_responseTimeoutId";
 
 
 	private final SocketConnection downstreamConnection;
@@ -183,6 +186,8 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		byte[] data = responsedata.getData();
 		data = HTTPCommon.prepareHTTPResponse(request, response, data);
 		synchronized(request){
+			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+				Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 			if(request.hasAttachment(ATTACHMENT_KEY_REQUEST_FINISHED)){
 				try{
 					if(data.length > 0){
@@ -236,10 +241,16 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			MessageStream mstream = new MessageStream(streamId, super.connection, cs, super.hpack);
 			initMessageStream(mstream);
 			logger.trace("Created new stream ", mstream.getStreamId(), " for HEADERS frame");
+			Consumer<Integer> baseCloseHandler = (status) -> {
+				logger.trace("Request stream ", mstream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
+				synchronized(super.closeWaitStreams){
+					super.closeWaitStreams.add(mstream);
+				}
+			};
 			mstream.setOnMessage((requestdata) -> {
 				HTTPRequest request = (HTTPRequest) requestdata.getHttpMessage();
 				try{
-					this.processHTTPRequest(mstream, request, requestdata.isLastPacket());
+					this.processHTTPRequest(mstream, request, requestdata.isLastPacket(), baseCloseHandler);
 				}catch(Exception e){
 					if(e instanceof HTTP2ConnectionError)
 						throw e;
@@ -247,6 +258,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 					logger.error("Error while processing request: ", e);
 				}
 			});
+			mstream.setOnClosed(baseCloseHandler);
 			return mstream;
 		}
 		return null;
@@ -262,7 +274,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		return requestId;
 	}
 
-	private synchronized void processHTTPRequest(MessageStream clientStream, HTTPRequest request, boolean endStream) throws IOException {
+	private synchronized void processHTTPRequest(MessageStream clientStream, HTTPRequest request, boolean endStream, Consumer<Integer> baseCloseHandler) throws IOException {
 		String requestId = this.initRequest(request);
 		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
 		if(!this.config.isDisableDefaultRequestLog())
@@ -273,10 +285,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
 
 		clientStream.setOnClosed((status) -> {
-			logger.trace("Request stream ", clientStream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
-			synchronized(super.closeWaitStreams){
-				super.closeWaitStreams.add(clientStream);
-			}
+			baseCloseHandler.accept(status);
 			if(usStream != null && !usStream.isClosed() && status != STATUS_NO_ERROR){
 				try{
 					usStream.rst(status);
@@ -289,7 +298,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		if(endStream){
 			if(usStream != null)
 				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, userver);
-			this.endRequest(request);
+			this.endRequest(request, clientStream, usStream);
 		}else{
 			clientStream.setOnData((requestdata) -> {
 				if(usStream != null){
@@ -310,7 +319,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 					}
 				}
 				if(requestdata.isLastPacket())
-					this.endRequest(request);
+					this.endRequest(request, clientStream, usStream);
 			});
 			clientStream.setOnTrailers((trailers) -> {
 				if(usStream != null){
@@ -331,7 +340,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 						logger.error("Error while processing request trailers: ", e);
 					}
 				}
-				this.endRequest(request);
+				this.endRequest(request, clientStream, usStream);
 			});
 		}
 		if(usStream != null){
@@ -407,6 +416,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			this.prepareResponseStream(promiseRequest, ppDSStream, ppUSStream, userver, client::onMessageStreamClosed);
 
 			promiseRequest.setAttachment(MessageStream.ATTACHMENT_KEY_STREAM_ID, ppDSStreamId);
+			promiseRequest.setAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER, userver);
 
 			ppDSStream.setOnClosed((status) -> {
 				logger.trace("Push promise request stream ", ppDSStream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
@@ -424,7 +434,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, promiseRequest, userver);
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, promiseRequest, userver);
-			this.endRequest(promiseRequest);
+			this.endRequest(promiseRequest, ppDSStream, ppUSStream);
 
 			// forward push promise to client
 			clientStream.sendPushPromise(ppDSStreamId, promiseRequest);
@@ -434,19 +444,33 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		return usStream;
 	}
 
-	private void endRequest(HTTPRequest request) throws IOException {
+	private void endRequest(HTTPRequest request, MessageStream dsStream, MessageStream usStream) throws IOException {
 		synchronized(request){
 			request.setAttachment(ATTACHMENT_KEY_REQUEST_FINISHED, true);
 			HTTPResponseData res;
 			if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
-				MessageStream stream = (MessageStream) super.streams.get((int) request.getAttachment(MessageStream.ATTACHMENT_KEY_STREAM_ID));
-				if(stream == null)
-					throw new IllegalStateException("Stream closed");
 				if(res.getData() != null){
-					stream.sendHTTPMessage(res.getHttpMessage(), false);
-					stream.sendData(res.getData(), true);
+					dsStream.sendHTTPMessage(res.getHttpMessage(), false);
+					dsStream.sendData(res.getData(), true);
 				}else
-					stream.sendHTTPMessage(res.getHttpMessage(), true);
+					dsStream.sendHTTPMessage(res.getHttpMessage(), true);
+			}else if(usStream != null && this.config.getResponseTimeout() > 0){
+				long tid = Tasks.timeout(() -> {
+					if(this.downstreamClosed || dsStream.isClosed())
+						return;
+					SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
+					UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
+					logUNetError(uconn.getAttachment(), " Response timeout");
+					try{
+						this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, uconn, request, userver);
+						this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, uconn, userver);
+						usStream.rst(STATUS_CANCEL);
+					}catch(Exception e){
+						this.respondInternalError(request, e);
+						logger.error(uconn.getAttachment(), " Error while handling response timeout: ", e);
+					}
+				}, this.config.getResponseTimeout()).daemon().getId();
+				request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
 			}
 		}
 	}
@@ -460,6 +484,9 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
 			HTTPResponse response = (HTTPResponse) responsedata.getHttpMessage();
 			try{
+				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+
 				if(!HTTPCommon.setRequestResponse(request, response))
 					return;
 				response.setOther(request);
