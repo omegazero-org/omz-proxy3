@@ -18,7 +18,7 @@ Configuration ID: `http2`
 
 Configuration ID: `HTTP2`
 
-All [common HTTP engine parameters](https://git.omegazero.org/omegazero/omz-proxy3#common-http-engine-parameters) are supported, in addition to the ones listed below.
+All [common HTTP engine parameters](https://git.omegazero.org/omegazero/omz-proxy3#common-http-engine-parameters) except `requestTimeout` are supported, in addition to the ones listed below.
 
 | Name | Type | Description | Required | Default value |
 | --- | --- | --- | --- | --- |
@@ -26,7 +26,6 @@ All [common HTTP engine parameters](https://git.omegazero.org/omegazero/omz-prox
 | maxDynamicTableSize | number | The maximum size in bytes of the HPACK dynamic table used by the decoder (HTTP/2 setting: HEADER_TABLE_SIZE). | no | `4096` (http/2 default) |
 | initialWindowSize | number | The initial flow control window size in bytes (HTTP/2 setting: INITIAL_WINDOW_SIZE). | no | `65535` (http/2 default) |
 | maxConcurrentStreams | number | The maximum number of concurrent streams (HTTP/2 setting: MAX_CONCURRENT_STREAMS). Should be lower or equal than the setting value of the upstream server. | no | `100` |
-| maxHeadersSize | number | The maximum size of a header block in bytes. | no | `16384` |
 | useHuffmanEncoding | boolean | Whether to compress header strings with Huffman Coding. | no | `true` |
 | closeWaitTimeout | number | The close-wait timeout for closed streams in seconds. | no | `5` |
 | disablePromiseRequestLog | boolean | Disable request log of server push requests. | no | value of `disableDefaultRequestLog` |
