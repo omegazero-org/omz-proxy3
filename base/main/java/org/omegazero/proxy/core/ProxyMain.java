@@ -23,7 +23,7 @@ import org.omegazero.common.util.Util;
 
 public class ProxyMain {
 
-	private static Logger logger = LoggerUtil.createLogger();
+	private static final Logger logger = LoggerUtil.createLogger();
 
 	private static Proxy proxy;
 
@@ -98,15 +98,17 @@ public class ProxyMain {
 
 			logger.info("Shutting down");
 
-			try{
-				if(proxy != null)
-					proxy.close();
-			}catch(Throwable e){
-				logger.fatal("Error while closing proxy: ", e);
-			}
 			Tasks.timeout((args) -> {
 				ProxyMain.closeTimeout();
 			}, shutdownTimeout).daemon();
+
+			try{
+				if(proxy != null)
+					proxy.close();
+				logger.trace("Proxy closed");
+			}catch(Throwable e){
+				logger.fatal("Error while closing proxy: ", e);
+			}
 			LoggerUtil.close();
 
 			Tasks.exit();
