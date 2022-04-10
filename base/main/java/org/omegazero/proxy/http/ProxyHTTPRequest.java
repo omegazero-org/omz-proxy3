@@ -1,7 +1,12 @@
+/*
+ * Copyright (C) 2022 omegazero.org, user94729
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
+ * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
 package org.omegazero.proxy.http;
 
 import org.omegazero.http.common.HTTPHeaderContainer;
-import org.omegazero.http.common.HTTPMessage;
 import org.omegazero.http.common.HTTPRequest;
 
 /**
@@ -60,10 +65,22 @@ public class ProxyHTTPRequest extends HTTPRequest {
 	 * Responds to this {@code HTTPRequest} with an error message.
 	 * 
 	 * @param status The status code of the response
+	 * @param message Error message
+	 * @param headers Headers to send in the response
+	 * @see HTTPEngine#respondError(HTTPRequest, int, String, String...)
+	 */
+	public void respondError(int status, String message, String... headers) {
+		((HTTPEngine) super.httpResponder).respondError(this, status, message, headers);
+	}
+
+	/**
+	 * Responds to this {@code HTTPRequest} with an error message.
+	 * 
+	 * @param status The status code of the response
 	 * @param title Title of the error message
 	 * @param message Error message
 	 * @param headers Headers to send in the response
-	 * @see HTTPEngine#respondError(HTTPMessage, int, String, String, String...)
+	 * @see HTTPEngine#respondError(HTTPRequest, int, String, String, String...)
 	 */
 	public void respondError(int status, String title, String message, String... headers) {
 		((HTTPEngine) super.httpResponder).respondError(this, status, title, message, headers);
