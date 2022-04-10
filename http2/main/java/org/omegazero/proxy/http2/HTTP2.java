@@ -176,7 +176,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			return;
 		MessageStream stream = (MessageStream) super.streams.get(streamId);
 		if(stream == null)
-			throw new IllegalStateException("Stream closed");
+			throw new IllegalStateException("Invalid stream");
 		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", response.getStatus());
 
 		response.deleteHeader("transfer-encoding");
@@ -186,21 +186,27 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 		byte[] data = responsedata.getData();
 		data = HTTPCommon.prepareHTTPResponse(request, response, data);
-		synchronized(request){
-			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-				Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
-			if(request.hasAttachment(ATTACHMENT_KEY_REQUEST_FINISHED)){
-				try{
-					if(data.length > 0){
-						stream.sendHTTPMessage(response, false);
-						stream.sendData(data, true);
-					}else
-						stream.sendHTTPMessage(response, true);
-				}catch(IOException e){
-					throw new AssertionError(e);
-				}
-			}else
-				request.setAttachment(ATTACHMENT_KEY_PENDING_RESPONSE, new HTTPResponseData(response, data.length > 0 ? data : null));
+		synchronized(stream){
+			if(!stream.isExpectingResponse()) // fail silently
+				return;
+			synchronized(request){
+				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+				if(request.hasAttachment(ATTACHMENT_KEY_REQUEST_FINISHED)){
+					try{
+						synchronized(super.hpack){
+							if(data.length > 0){
+								stream.sendHTTPMessage(response, false);
+								stream.sendData(data, true);
+							}else
+								stream.sendHTTPMessage(response, true);
+						}
+					}catch(IOException e){
+						throw new AssertionError(e);
+					}
+				}else
+					request.setAttachment(ATTACHMENT_KEY_PENDING_RESPONSE, new HTTPResponseData(response, data.length > 0 ? data : null));
+			}
 		}
 	}
 
@@ -324,8 +330,6 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			});
 			clientStream.setOnTrailers((trailers) -> {
 				if(usStream != null){
-					if(usStream.isClosed())
-						throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
 					try{
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TRAILERS, this.downstreamConnection, trailers, userver);
 						if(usStream.isClosed()){
@@ -374,6 +378,11 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		synchronized(this){
 			HTTP2Client tmp;
 			tmp = this.upstreamClients.get(userver);
+			if(tmp != null && !tmp.getConnection().isConnected()){
+				logger.debug(this.downstreamConnectionDbgstr, " Upstream connection to ", tmp.getConnection().getRemoteName(), " no longer connected but still in map");
+				this.upstreamClients.remove(userver, tmp);
+				tmp = null;
+			}
 			if(tmp == null)
 				tmp = this.createClient(request, userver);
 			if(tmp == null)
@@ -446,32 +455,36 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 	}
 
 	private void endRequest(HTTPRequest request, MessageStream dsStream, MessageStream usStream) throws IOException {
-		synchronized(request){
-			request.setAttachment(ATTACHMENT_KEY_REQUEST_FINISHED, true);
-			HTTPResponseData res;
-			if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
-				if(res.getData() != null){
-					dsStream.sendHTTPMessage(res.getHttpMessage(), false);
-					dsStream.sendData(res.getData(), true);
-				}else
-					dsStream.sendHTTPMessage(res.getHttpMessage(), true);
-			}else if(usStream != null && this.config.getResponseTimeout() > 0){
-				long tid = Tasks.timeout(() -> {
-					if(this.downstreamClosed || dsStream.isClosed())
-						return;
-					SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
-					UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
-					logUNetError(uconn.getAttachment(), " Response timeout");
-					try{
-						this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, uconn, request, userver);
-						this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, uconn, userver);
-						usStream.rst(STATUS_CANCEL);
-					}catch(Exception e){
-						this.respondInternalError(request, e);
-						logger.error(uconn.getAttachment(), " Error while handling response timeout: ", e);
+		synchronized(dsStream){
+			synchronized(request){
+				request.setAttachment(ATTACHMENT_KEY_REQUEST_FINISHED, true);
+				HTTPResponseData res;
+				if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
+					synchronized(super.hpack){
+						if(res.getData() != null){
+							dsStream.sendHTTPMessage(res.getHttpMessage(), false);
+							dsStream.sendData(res.getData(), true);
+						}else
+							dsStream.sendHTTPMessage(res.getHttpMessage(), true);
 					}
-				}, this.config.getResponseTimeout()).daemon().getId();
-				request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
+				}else if(usStream != null && this.config.getResponseTimeout() > 0){
+					long tid = Tasks.timeout(() -> {
+						if(this.downstreamClosed || dsStream.isClosed())
+							return;
+						SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
+						UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
+						logUNetError(uconn.getAttachment(), " Response timeout");
+						try{
+							this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, uconn, request, userver);
+							this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, uconn, userver);
+							usStream.rst(STATUS_CANCEL);
+						}catch(Exception e){
+							this.respondInternalError(request, e);
+							logger.error(uconn.getAttachment(), " Error while handling response timeout: ", e);
+						}
+					}, this.config.getResponseTimeout()).daemon().getId();
+					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
+				}
 			}
 		}
 	}
@@ -481,52 +494,66 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			java.util.function.Consumer<MessageStream> streamClosedHandler) {
 		SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
 		usStream.setOnMessage((responsedata) -> {
-			if(dsStream.isClosed())
-				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
-			HTTPResponse response = (HTTPResponse) responsedata.getHttpMessage();
-			try{
-				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+			synchronized(dsStream){
+				if(dsStream.isClosed())
+					throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
+				HTTPResponse response = (HTTPResponse) responsedata.getHttpMessage();
+				try{
+					if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+						Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 
-				if(!HTTPCommon.setRequestResponse(request, response))
-					return;
-				response.setOther(request);
-				if(this.config.isEnableHeaders()){
-					if(!response.headerExists("date"))
-						response.setHeader("date", HTTPCommon.dateString());
-					HTTPCommon.setDefaultHeaders(this.proxy, response);
-				}
+					if(!HTTPCommon.setRequestResponse(request, response))
+						return;
+					response.setOther(request);
+					if(this.config.isEnableHeaders()){
+						if(!response.headerExists("date"))
+							response.setHeader("date", HTTPCommon.dateString());
+						HTTPCommon.setDefaultHeaders(this.proxy, response);
+					}
 
-				boolean wasChunked = response.isChunkedTransfer();
-				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, this.downstreamConnection, uconn, response, userver);
-				if(wasChunked && !response.isChunkedTransfer())
-					throw new IllegalStateException("Cannot unchunkify a response body");
-				else if(response.isChunkedTransfer() && !wasChunked)
-					response.deleteHeader("content-length");
-				if(response.isIntermediateMessage())
+					boolean wasChunked = response.isChunkedTransfer();
+					this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, this.downstreamConnection, uconn, response, userver);
+					if(wasChunked && !response.isChunkedTransfer())
+						throw new IllegalStateException("Cannot unchunkify a response body");
+					else if(response.isChunkedTransfer() && !wasChunked)
+						response.deleteHeader("content-length");
+					if(response.isIntermediateMessage())
+						request.setOther(null);
+					synchronized(request){
+						synchronized(super.hpack){
+							dsStream.sendHTTPMessage(response, responsedata.isLastPacket());
+						}
+					}
+				}catch(Exception e){
 					request.setOther(null);
-				dsStream.sendHTTPMessage(response, responsedata.isLastPacket());
-			}catch(Exception e){
-				request.setOther(null);
-				if(e instanceof HTTP2ConnectionError)
-					throw e;
-				this.respondInternalError(request, e);
-				logger.error("Error while processing response: ", e);
+					if(e instanceof HTTP2ConnectionError)
+						throw e;
+					this.respondInternalError(request, e);
+					logger.error("Error while processing response: ", e);
+				}
 			}
 		});
 		usStream.setOnData((responsedata) -> {
-			if(dsStream.isClosed())
-				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, responsedata, userver);
-			if(!dsStream.sendData(responsedata.getData(), responsedata.isLastPacket()))
-				usStream.setReceiveData(false);
+			synchronized(dsStream){
+				if(dsStream.isClosed())
+					throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_DATA, this.downstreamConnection, uconn, responsedata, userver);
+				if(!dsStream.sendData(responsedata.getData(), responsedata.isLastPacket()))
+					usStream.setReceiveData(false);
+			}
 		});
 		usStream.setOnTrailers((trailers) -> {
-			if(dsStream.isClosed())
-				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TRAILERS, this.downstreamConnection, uconn, trailers, userver);
-			// HTTP_RESPONSE_ENDED event is already run in onClosed below because the response stream is complete and closes immediately after receiving trailers
-			dsStream.sendTrailers(trailers);
+			synchronized(dsStream){
+				if(dsStream.isClosed())
+					throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TRAILERS, this.downstreamConnection, uconn, trailers, userver);
+				// HTTP_RESPONSE_ENDED event is already run in onClosed below because the response stream is complete and closes immediately after receiving trailers
+				synchronized(request){
+					synchronized(super.hpack){
+						dsStream.sendTrailers(trailers);
+					}
+				}
+			}
 		});
 		usStream.setOnClosed((status) -> {
 			if(this.downstreamClosed)
@@ -615,7 +642,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			logger.debug(uconn.getAttachment(), " Disconnected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 			synchronized(this){
-				if(!HTTP2.this.downstreamClosed)
+				if(!this.downstreamClosed)
 					client.close(); // close here to send 502 response(s) if necessary
 			}
 			this.upstreamClients.remove(userver, client);
