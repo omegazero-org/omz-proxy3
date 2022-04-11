@@ -338,7 +338,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		}
 	}
 
-	private void endRequest(HTTPRequest request) {
+	private synchronized void endRequest(HTTPRequest request) {
 		synchronized(request){
 			request.setAttachment(ATTACHMENT_KEY_DECHUNKER, null);
 			HTTPResponseData res;
@@ -353,6 +353,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	}
 
 	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, SocketConnection uconn) throws IOException {
+		assert Thread.holdsLock(this);
 		if(this.currentUpstreamConnection != uconn || this.currentRequest == null)
 			throw new IOException("Unexpected data");
 
@@ -411,7 +412,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 					transferChunk(response, resdata, last, uconn, this.downstreamConnection);
 					if(last){
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_ENDED, this.downstreamConnection, uconn, response, userver);
-						this.currentRequest = null;
+						synchronized(this){
+							this.currentRequest = null;
+						}
 						if("close".equals(request.getHeader("connection")) || "close".equals(response.getHeader("connection")))
 							this.downstreamConnection.close();
 					}
@@ -517,9 +520,11 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			this.upstreamConnections.remove(userver, uconn);
 		});
 		uconn.setOnData((d) -> {
-			do{
-				d = this.processResponsePacket(d, userver, uconn);
-			}while(d != null && d.length > 0);
+			synchronized(this){
+				do{
+					d = this.processResponsePacket(d, userver, uconn);
+				}while(d != null && d.length > 0);
+			}
 		});
 		this.upstreamConnections.put(this.currentUpstreamServer, uconn);
 		return uconn;
