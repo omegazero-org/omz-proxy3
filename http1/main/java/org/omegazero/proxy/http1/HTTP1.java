@@ -462,19 +462,23 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		uconn.setOnTimeout(() -> {
 			logUNetError(uconn.getAttachment(), " Connect timeout");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
-			if(this.currentUpstreamConnection == uconn && this.currentRequest != null)
-				this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
+			synchronized(this){
+				if(this.currentUpstreamConnection == uconn && this.currentRequest != null)
+					this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
+			}
 		});
 		uconn.setOnError((e) -> {
 			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
 
-				if(this.currentUpstreamConnection == uconn && this.currentRequest != null){
-					if(e instanceof IOException)
-						this.respondUNetError(this.currentRequest, STATUS_BAD_GATEWAY, HTTPCommon.getUpstreamErrorMessage(e), uconn, userver);
-					else
-						this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
+				synchronized(this){
+					if(this.currentUpstreamConnection == uconn && this.currentRequest != null){
+						if(e instanceof IOException)
+							this.respondUNetError(this.currentRequest, STATUS_BAD_GATEWAY, HTTPCommon.getUpstreamErrorMessage(e), uconn, userver);
+						else
+							this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
+					}
 				}
 			}catch(Exception ue){
 				e2 = ue;
@@ -497,23 +501,25 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				this.downstreamConnection.setReadBlock(false); // release backpressure
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 
-			if(this.currentUpstreamConnection == uconn && !this.downstreamClosed && this.currentRequest != null){
-				HTTPResponse response = this.currentRequest.getOther();
-				if(response == null){
-					// did not receive a response
-					logUNetError(uconn.getAttachment(), " Connection closed unexpectedly");
-					this.respondUNetError(this.currentRequest, STATUS_BAD_GATEWAY, HTTPCommon.MSG_UPSTREAM_CONNECTION_CLOSED, uconn, userver);
-				}else{
-					MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment(ATTACHMENT_KEY_DECHUNKER);
-					if(dechunker != null){ // may be null if respond() was used
-						if(!dechunker.hasReceivedAllData()){
-							logUNetError(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
+			synchronized(this){
+				if(this.currentUpstreamConnection == uconn && !this.downstreamClosed && this.currentRequest != null){
+					HTTPResponse response = this.currentRequest.getOther();
+					if(response == null){
+						// did not receive a response
+						logUNetError(uconn.getAttachment(), " Connection closed unexpectedly");
+						this.respondUNetError(this.currentRequest, STATUS_BAD_GATEWAY, HTTPCommon.MSG_UPSTREAM_CONNECTION_CLOSED, uconn, userver);
+					}else{
+						MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment(ATTACHMENT_KEY_DECHUNKER);
+						if(dechunker != null){ // may be null if respond() was used
+							if(!dechunker.hasReceivedAllData()){
+								logUNetError(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
+								this.downstreamConnection.close();
+							}else
+								dechunker.end();
+						}
+						if(this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL))
 							this.downstreamConnection.close();
-						}else
-							dechunker.end();
 					}
-					if(this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL))
-						this.downstreamConnection.close();
 				}
 			}
 
