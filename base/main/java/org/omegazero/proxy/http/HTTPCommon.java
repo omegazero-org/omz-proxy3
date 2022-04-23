@@ -121,6 +121,8 @@ public final class HTTPCommon {
 			return MSG_UPSTREAM_CONNECT_FAILED + ": TLS handshake error";
 		else if(e instanceof java.net.ConnectException)
 			return MSG_UPSTREAM_CONNECT_FAILED + ": " + e.getMessage();
+		else if(e instanceof javax.net.ssl.SSLException)
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": TLS error";
 		else if(e instanceof java.net.SocketException)
 			return MSG_UPSTREAM_CONNECTION_ERROR + ": " + e.getMessage();
 		else if(e instanceof InvalidHTTPMessageException)
