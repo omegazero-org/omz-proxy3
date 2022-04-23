@@ -111,7 +111,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	}
 
 	@Override
-	public synchronized void close() {
+	public void close() {
 		this.downstreamClosed = true;
 		for(SocketConnection uconn : this.upstreamConnections.values())
 			uconn.close();
