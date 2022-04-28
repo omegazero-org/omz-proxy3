@@ -31,6 +31,7 @@ public final class HTTPCommon {
 	private static final Random RANDOM = new Random();
 	public static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
 	public static final boolean USOCKET_ERROR_DEBUG = PropertyUtil.getBoolean("org.omegazero.proxy.net.upstreamSocketErrorDebug", false);
+	public static final String REQUEST_ID_SEPARATOR = PropertyUtil.getString("org.omegazero.proxy.http.requestIdSeparator", ",");
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 
@@ -107,7 +108,7 @@ public final class HTTPCommon {
 	 */
 	public static void setDefaultHeaders(Proxy proxy, HTTPMessage msg) {
 		msg.appendHeader("via", msg.getHttpVersion() + " " + proxy.getInstanceName(), ", ");
-		msg.appendHeader("x-request-id", (String) (msg instanceof HTTPRequest ? msg : msg.getOther()).getAttachment(ATTACHMENT_KEY_REQUEST_ID), ",");
+		msg.appendHeader("x-request-id", (String) (msg instanceof HTTPRequest ? msg : msg.getOther()).getAttachment(ATTACHMENT_KEY_REQUEST_ID), REQUEST_ID_SEPARATOR);
 	}
 
 	/**

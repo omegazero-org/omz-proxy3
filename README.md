@@ -109,6 +109,7 @@ This configuration listens on the default local address and HTTP/HTTPS ports and
 | sni.maxCacheNameLen | number | The maximum server name length to cache for SNI. | `64` | 3.1.0 |
 | sni.maxCacheMappings | number | The maximum number of entries in the SNI name cache. | `4096` | 3.1.0 |
 | http.iaddrHashSalt | number | A 32-bit salt used for generating request IDs. | `42` | 3.3.1 |
+| http.requestIdSeparator | string | The separator string for multiple `X-Request-ID` values. | `","` | 3.6.2 |
 | net.upstreamSocketErrorDebug | boolean | Whether log messages of upstream connection failures should be printed with log level *DEBUG* instead of *WARN*. Similar to [`org.omegazero.net.socketErrorDebug`](https://docs.omegazero.org/javadoc/omz-net-lib/org/omegazero/net/common/NetCommon.html#SOCKET_ERROR_DEBUG). | `false` | 3.6.1 |
 
 
