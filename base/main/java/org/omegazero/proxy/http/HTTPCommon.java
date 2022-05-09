@@ -31,7 +31,9 @@ public final class HTTPCommon {
 	private static final Random RANDOM = new Random();
 	public static final int IADDR_HASH_SALT = PropertyUtil.getInt("org.omegazero.proxy.http.iaddrHashSalt", 42);
 	public static final boolean USOCKET_ERROR_DEBUG = PropertyUtil.getBoolean("org.omegazero.proxy.net.upstreamSocketErrorDebug", false);
-	public static final String REQUEST_ID_SEPARATOR = PropertyUtil.getString("org.omegazero.proxy.http.requestIdSeparator", ",");
+	public static final String REQUEST_ID_SEPARATOR = PropertyUtil.getString("org.omegazero.proxy.http.requestId.separator", ",");
+	public static final int REQUEST_ID_TIME_LENGTH = PropertyUtil.getInt("org.omegazero.proxy.http.requestId.timeLength", 0);
+	public static final long REQUEST_ID_TIME_BASE = PropertyUtil.getLong("org.omegazero.proxy.http.requestId.timeBase", 0);
 
 	private static final DateTimeFormatter DATE_HEADER_FORMATTER = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss z", Locale.ENGLISH).withZone(ZoneId.of("GMT"));
 
@@ -75,18 +77,36 @@ public final class HTTPCommon {
 	}
 
 	/**
-	 * Generates a pseudo-random request ID from the given parameters.
+	 * Generates a pseudo-random request ID from the given parameters and system properties.
 	 * 
 	 * @param connection The remote connection
 	 * @return The request ID
 	 */
 	public static String requestId(SocketConnection connection) {
-		StringBuilder sb = new StringBuilder(32);
 		int n = RANDOM.nextInt();
 		if(n <= 0x0fffffff)
 			n |= 0x10000000;
-		sb.append(Integer.toHexString(n)).append(HTTPCommon.hstrFromInetAddress(((java.net.InetSocketAddress) connection.getRemoteAddress()).getAddress())).append('-')
-				.append(Long.toHexString(System.currentTimeMillis()));
+		StringBuilder sb = new StringBuilder(32);
+		sb.append(Integer.toHexString(n)).append(HTTPCommon.hstrFromInetAddress(((java.net.InetSocketAddress) connection.getRemoteAddress()).getAddress()));
+		if(REQUEST_ID_TIME_LENGTH > 0){
+			sb.append('-');
+			char[] buf = new char[REQUEST_ID_TIME_LENGTH];
+			long val = Math.max(System.currentTimeMillis() - REQUEST_ID_TIME_BASE, 0);
+			for(int i = buf.length - 1; i >= 0; i--){
+				long p = val & 0xf;
+				val >>>= 4;
+				char c;
+				if(p >= 10)
+					c = (char) (p + 87);
+				else
+					c = (char) (p + 48);
+				buf[i] = c;
+			}
+			sb.append(buf);
+		}else if(REQUEST_ID_TIME_LENGTH == 0){
+			sb.append('-');
+			sb.append(Long.toHexString(System.currentTimeMillis()));
+		}
 		return sb.toString();
 	}
 
@@ -136,8 +156,8 @@ public final class HTTPCommon {
 
 
 	/**
-	 * Sets the response of the given <b>request</b> to <b>response</b> atomically and returns <code>true</code> if successful or <code>false</code> if the given request
-	 * already has a response associated with it.
+	 * Sets the response of the given <b>request</b> to <b>response</b> atomically and returns <code>true</code> if successful or <code>false</code> if the given request already
+	 * has a response associated with it.
 	 * 
 	 * @param request The request
 	 * @param response The response
@@ -159,8 +179,8 @@ public final class HTTPCommon {
 	 * Prepares the given <b>response</b> by performing one of the following:
 	 * <ul>
 	 * <li>If the response is a result of a request with the <i>HEAD</i> method, <b>data</b> is set to an empty array and any <i>Content-Length</i> header is deleted</li>
-	 * <li>If the response should contain a response body ({@link #hasResponseBody(HTTPMessage, HTTPMessage)} returns <code>true</code>), the <i>Content-Length</i> header is
-	 * set to the length of <b>data</b></li>
+	 * <li>If the response should contain a response body ({@link #hasResponseBody(HTTPMessage, HTTPMessage)} returns <code>true</code>), the <i>Content-Length</i> header is set to
+	 * the length of <b>data</b></li>
 	 * <li>If the response should not contain a response body and <b>data</b> is empty, any <i>Content-Length</i> header is deleted</li>
 	 * </ul>
 	 * 
