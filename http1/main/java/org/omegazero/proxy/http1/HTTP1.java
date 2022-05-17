@@ -227,10 +227,6 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if(this.config.isEnableHeaders())
 				HTTPCommon.setDefaultHeaders(this.proxy, request);
 
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
-			if(!this.config.isDisableDefaultRequestLog())
-				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
-
 			String hostname = request.getAuthority();
 			if(hostname == null)
 				throw new InvalidHTTPMessageException("Missing Host header", true);
@@ -250,6 +246,10 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				}
 			});
 			request.setAttachment(ATTACHMENT_KEY_DECHUNKER, dechunker);
+
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
+			if(!this.config.isDisableDefaultRequestLog())
+				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
 
 			// init connection to upstream server; breaking here requires a queued response, and will cause simply sending the response after the request ended
 			upstream: {
