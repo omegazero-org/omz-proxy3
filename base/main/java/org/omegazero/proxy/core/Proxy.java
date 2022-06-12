@@ -40,6 +40,8 @@ import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.common.plugins.Plugin;
 import org.omegazero.common.plugins.PluginManager;
+import org.omegazero.common.runtime.Application;
+import org.omegazero.common.runtime.ApplicationWrapper;
 import org.omegazero.common.util.Args;
 import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.client.params.ConnectionParameters;
@@ -52,7 +54,7 @@ import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.net.UpstreamServer;
 
-public final class Proxy {
+public final class Proxy implements Application {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
@@ -100,6 +102,12 @@ public final class Proxy {
 		instance = this;
 	}
 
+
+	@Override
+	public void start(Args args) throws Exception {
+		Thread.currentThread().setName("InitializationThread");
+		this.init(args);
+	}
 
 	public synchronized void init(Args args) throws IOException {
 		this.requireStateMax(State.NEW);
@@ -169,10 +177,38 @@ public final class Proxy {
 		this.updateState(State.RUNNING);
 	}
 
+
+	@Override
+	public synchronized void close() throws IOException {
+		if(!ApplicationWrapper.isShuttingDown())
+			throw new IllegalStateException("Not shutting down");
+		if(this.state.value() >= State.STOPPING.value())
+			return;
+		logger.info("Closing");
+		this.updateState(State.STOPPING);
+
+		if(this.proxyEventBus != null)
+			this.dispatchEvent(ProxyEvents.SHUTDOWN);
+
+		for(NetServer server : this.serverInstances){
+			server.close();
+		}
+		for(NetClientManager mgr : this.clientManagers.values()){
+			mgr.close();
+		}
+		if(this.serverWorker != null)
+			this.serverWorker.exit();
+
+		this.updateState(State.STOPPED);
+
+		Proxy.instance = null;
+	}
+
+
 	public void shutdown() {
 		this.requireStateMin(State.STARTING);
 		this.serverWorker.queue((args) -> {
-			ProxyMain.shutdown();
+			ApplicationWrapper.shutdown();
 		}, 10);
 	}
 
@@ -302,10 +338,10 @@ public final class Proxy {
 
 
 	/**
-	 * Registers a new {@link NetServer} instance of the given type.<br>
-	 * <br>
-	 * A new instance of the given type is created and registered using {@link Proxy#registerServerInstance(NetServer)}. This requires that the given type has a constructor
-	 * with no parameters. If the type requires additional arguments in the constructor, use <code>Proxy.registerServerInstance(NetServer)</code> directly instead.
+	 * Registers a new {@link NetServer} instance of the given type.
+	 * <p>
+	 * A new instance of the given type is created and registered using {@link Proxy#registerServerInstance(NetServer)}. This requires that the given type has a constructor with no
+	 * parameters. If the type requires additional arguments in the constructor, use <code>Proxy.registerServerInstance(NetServer)</code> directly instead.
 	 * 
 	 * @param c
 	 */
@@ -319,8 +355,8 @@ public final class Proxy {
 	}
 
 	/**
-	 * Registers a new {@link NetServer} instance. The instance is added to the list of registered instances and will be initialized at the beginning of the main
-	 * initialization phase, meaning server instances must be registered during the {@link ProxyEvents#PREINIT} event.
+	 * Registers a new {@link NetServer} instance. The instance is added to the list of registered instances and will be initialized at the beginning of the main initialization
+	 * phase, meaning server instances must be registered during the {@link ProxyEvents#PREINIT} event.
 	 * 
 	 * @param server
 	 */
@@ -335,11 +371,11 @@ public final class Proxy {
 	}
 
 	/**
-	 * Registers a new {@link HTTPEngine} selector.<br>
-	 * <br>
-	 * For incoming connections, an appropriate <code>HTTPEngine</code> must be selected. For this, every registered selector is called until one returns a
-	 * non-<code>null</code> value, which will be the <code>HTTPEngine</code> used for the connection. If all selectors return <code>null</code>, an
-	 * <code>UnsupportedOperationException</code> is thrown and the connection will be closed.
+	 * Registers a new {@link HTTPEngine} selector.
+	 * <p>
+	 * For incoming connections, an appropriate <code>HTTPEngine</code> must be selected. For this, every registered selector is called until one returns a non-<code>null</code>
+	 * value, which will be the <code>HTTPEngine</code> used for the connection. If all selectors return <code>null</code>, an <code>UnsupportedOperationException</code> is thrown
+	 * and the connection will be closed.
 	 * 
 	 * @param selector
 	 */
@@ -364,30 +400,6 @@ public final class Proxy {
 		}catch(IOException e){
 			throw new RuntimeException("Failed to initialize application of type '" + app.getClass().getName() + "'", e);
 		}
-	}
-
-
-	protected synchronized void close() throws IOException {
-		if(this.state.value() >= State.STOPPING.value())
-			return;
-		logger.info("Closing");
-		this.updateState(State.STOPPING);
-
-		if(this.proxyEventBus != null)
-			this.dispatchEvent(ProxyEvents.SHUTDOWN);
-
-		for(NetServer server : this.serverInstances){
-			server.close();
-		}
-		for(NetClientManager mgr : this.clientManagers.values()){
-			mgr.close();
-		}
-		if(this.serverWorker != null)
-			this.serverWorker.exit();
-
-		this.updateState(State.STOPPED);
-
-		Proxy.instance = null;
 	}
 
 
@@ -446,8 +458,8 @@ public final class Proxy {
 
 
 	/**
-	 * Reloads the configuration from the configuration file and pushes the new configuration data to plugins.<br>
-	 * <br>
+	 * Reloads the configuration from the configuration file and pushes the new configuration data to plugins.
+	 * <p>
 	 * If no configuration file was used, this method does nothing.
 	 * 
 	 * @throws IOException
@@ -507,13 +519,12 @@ public final class Proxy {
 	}
 
 	/**
-	 * Delegates the given event to this proxy's {@link EventBus} and returns a <code>boolean</code> value returned by the event handlers.<br>
-	 * <br>
+	 * Delegates the given event to this proxy's {@link EventBus} and returns a <code>boolean</code> value returned by the event handlers.
+	 * <p>
 	 * If {@link Event#isIncludeAllReturns()} is <code>false</code>, the return value of the first event handler that returns a non-<code>null</code> value is returned. If all
 	 * event handlers return <code>null</code> or there are none, <b>def</b> will be returned.<br>
-	 * Otherwise, if <code>includeAllReturns</code> is <code>true</code>, all event handlers will be executed and the value of <b>def</b> is returned if all event handlers
-	 * return either <code>null</code> or the same value as <b>def</b>. Otherwise, the return value of the first event handler is returned that does not match the <b>def</b>
-	 * value.
+	 * Otherwise, if <code>includeAllReturns</code> is <code>true</code>, all event handlers will be executed and the value of <b>def</b> is returned if all event handlers return
+	 * either <code>null</code> or the same value as <b>def</b>. Otherwise, the return value of the first event handler is returned that does not match the <b>def</b> value.
 	 * 
 	 * @param event The event to dispatch using this proxy's event bus
 	 * @param def The value to return if all event handlers return null or there are none
@@ -643,8 +654,8 @@ public final class Proxy {
 	}
 
 	/**
-	 * Parses the given value of an <code>Accept</code> HTTP header and returns the {@link HTTPErrdoc} for the first content type in the header for which an errdoc is found.
-	 * If no overlap is found, or the header does not exist (the given value is <code>null</code>), the default errdoc is returned.
+	 * Parses the given value of an <code>Accept</code> HTTP header and returns the {@link HTTPErrdoc} for the first content type in the header for which an errdoc is found. If no
+	 * overlap is found, or the header does not exist (the given value is <code>null</code>), the default errdoc is returned.
 	 * 
 	 * @param accept The value of an <code>Accept</code> HTTP header
 	 * @return A suitable <code>HTTPErrdoc</code>, or the default errdoc if none was found
@@ -671,8 +682,8 @@ public final class Proxy {
 	}
 
 	/**
-	 * Sets an error document for the given MIME type (<b>Content-Type</b> header in HTTP).<br>
-	 * <br>
+	 * Sets an error document for the given MIME type (<b>Content-Type</b> header in HTTP).
+	 * <p>
 	 * The error document is returned by {@link Proxy#getErrdoc(String)} when given the MIME type. The {@link HTTPEngine} implementation may choose any way to determine the
 	 * appropriate error document type for a request, but usually does so using the <b>Accept</b> HTTP request header.
 	 * 
@@ -684,26 +695,28 @@ public final class Proxy {
 	}
 
 	/**
+	 * Returns the amount of time in milliseconds a connection with no traffic should persist before it is closed.
 	 * 
-	 * @return The amount of time in milliseconds a connection with no traffic should persist before it is closed
+	 * @return The time in milliseconds
 	 */
 	public int getConnectionIdleTimeout() {
 		return this.config.getConnectionIdleTimeout() * 1000;
 	}
 
 	/**
+	 * Returns the default upstream server configured in the configuration file. May be <code>null</code>.
 	 * 
-	 * @return The default upstream server configured in the configuration file. May be <code>null</code>
+	 * @return The default upstream server
 	 */
 	public UpstreamServer getDefaultUpstreamServer() {
 		return this.defaultUpstreamServer;
 	}
 
 	/**
-	 * Selects an upstream server based on the given hostname and path.<br>
-	 * <br>
-	 * This method uses the EventBus event {@link ProxyEvents#SELECT_UPSTREAM_SERVER}. If all event handlers return <code>null</code>, the default upstream server, which may
-	 * also be <code>null</code>, is selected.
+	 * Selects an upstream server based on the given hostname and path.
+	 * <p>
+	 * This method uses the EventBus event {@link ProxyEvents#SELECT_UPSTREAM_SERVER}. If all event handlers return <code>null</code>, the default upstream server, which may also
+	 * be <code>null</code>, is selected.
 	 * 
 	 * @param host The hostname to choose a server for
 	 * @param path
