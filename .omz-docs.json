@@ -12,7 +12,14 @@
 		"doctitle": "omegazero HTTP proxy version 3",
 		"header": "omz proxy v3",
 		"groups": {
-			"Base": "org.omegazero.proxy:org.omegazero.proxy.config:org.omegazero.proxy.core:org.omegazero.proxy.http:org.omegazero.proxy.net:org.omegazero.proxy.util",
+			"Base": [
+				"org.omegazero.proxy",
+				"org.omegazero.proxy.config",
+				"org.omegazero.proxy.core",
+				"org.omegazero.proxy.http",
+				"org.omegazero.proxy.net",
+				"org.omegazero.proxy.util"
+			],
 			"HTTP/1": "org.omegazero.proxy.http1",
 			"HTTP/2": "org.omegazero.proxy.http2"
 		},
@@ -26,7 +33,7 @@
 		"dependencies": [
 			"maven/org.json:json:20211205",
 			"omz/org.omegazero.common:omz-common:latest",
-			"omz/org.omegazero.net:omz-netlib:latest",
+			"omz/org.omegazero.net:omz-netlib-common:latest",
 			"omz/org.omegazero.http:omz-http:latest"
 		]
 	}

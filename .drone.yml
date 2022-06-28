@@ -12,7 +12,7 @@ steps:
   commands:
   - artifact-dl-java maven/org.json:json:20211205
   - artifact-dl-java omz/org.omegazero.common:omz-common:release
-  - artifact-dl-java omz/org.omegazero.net:omz-netlib:release
+  - artifact-dl-java omz/org.omegazero.net:omz-netlib-nio:release
   - artifact-dl-java omz/org.omegazero.http:omz-http:latest
 
 - name: prepare-source
@@ -31,7 +31,7 @@ steps:
   - mkdir -p build/base/bin/META-INF
   - cp LICENSE_BIN build/base/bin/META-INF/LICENSE
   - find base/main/java -iname "*.java" > build/base/srcfiles
-  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar @build/base/srcfiles
+  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar @build/base/srcfiles
   - cp -r base/main/resources/* build/base/bin/
   - jar cf build-base.jar -C build/base/bin .
   depends_on:
@@ -44,7 +44,7 @@ steps:
   - mkdir -p build/http1/bin/META-INF
   - cp LICENSE_BIN build/http1/bin/META-INF/LICENSE
   - find http1/main/java -iname "*.java" > build/http1/srcfiles
-  - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
+  - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
   - cp -r http1/main/resources/* build/http1/bin/
   - jar cf build-http1.jar -C build/http1/bin .
   depends_on:
@@ -56,7 +56,7 @@ steps:
   commands:
   - mkdir -p build/http2/bin/META-INF
   - cp LICENSE_BIN build/http2/bin/META-INF/LICENSE
-  - ecj -verbose -d build/http2/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-release.jar:omz-http-latest.jar:build-base.jar -8 http2/main/java
+  - ecj -verbose -d build/http2/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar -8 http2/main/java
   - cp -r http2/main/resources/* build/http2/bin/
   - jar cf build-http2.jar -C build/http2/bin .
   depends_on:
@@ -71,7 +71,7 @@ steps:
   - curl -G "https://raw.githubusercontent.com/stleary/JSON-java/master/LICENSE" > build/base/licenses/LICENSE_org_json
   - (cd build/base/bin; unzip -uo ../../../omz-common-release.jar)
   - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common"
-  - (cd build/base/bin; unzip -uo ../../../omz-netlib-release.jar)
+  - (cd build/base/bin; unzip -uo ../../../omz-netlib-nio-release.jar)
   - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net"
   - (cd build/base/bin; unzip -uo ../../../omz-http-latest.jar)
   - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http"
