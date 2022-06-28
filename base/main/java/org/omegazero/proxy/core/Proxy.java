@@ -54,10 +54,18 @@ import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.net.UpstreamServer;
 
+/**
+ * The main class of <i>omz-proxy</i>.
+ */
 public final class Proxy implements Application {
 
 	private static final Logger logger = LoggerUtil.createLogger();
 
+	/**
+	 * The version string of <i>omz-proxy</i>.
+	 * 
+	 * @see #getVersion()
+	 */
 	public static final String VERSION = "$BUILDVERSION";
 
 	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
@@ -94,7 +102,7 @@ public final class Proxy implements Application {
 	private UpstreamServer defaultUpstreamServer;
 
 	private List<NetServer> serverInstances = new ArrayList<>();
-	private Map<Class<? extends NetClientManager>, NetClientManager> clientManagers = new HashMap<>();
+	private Map<String, NetClientManager> clientManagers = new HashMap<>();
 
 	public Proxy() {
 		if(instance != null)
@@ -112,7 +120,8 @@ public final class Proxy implements Application {
 	public synchronized void init(Args args) throws IOException {
 		this.requireStateMax(State.NEW);
 
-		logger.info("omz-proxy (java) version ", VERSION);
+		logger.info("omz-proxy (java) version ", VERSION, ", omz-net-lib version ", org.omegazero.net.common.NetCommon.getVersion(), ", omz-http-lib version ",
+				org.omegazero.http.HTTPLib.getVersion());
 
 		this.updateState(State.PREINIT);
 		String configCmdData = args.getValue("config");
@@ -163,7 +172,7 @@ public final class Proxy implements Application {
 
 		this.serverWorkerProvider = new ApplicationWorkerProvider();
 
-		this.registerDefaults();
+		Defaults.registerProxyDefaults(this);
 		this.dispatchEvent(ProxyEvents.INIT);
 
 		this.updateState(State.STARTING);
@@ -298,10 +307,6 @@ public final class Proxy implements Application {
 		}
 	}
 
-	private void registerDefaults() {
-		Defaults.registerProxyDefaults(this);
-	}
-
 	private void loadErrdocs() throws IOException {
 		if(!this.config.getErrdocFiles().isEmpty()){
 			logger.info("Loading error documents");
@@ -386,10 +391,23 @@ public final class Proxy implements Application {
 	/**
 	 * Registers a new {@link NetClientManager} for outgoing connections.
 	 * 
-	 * @param mgr
+	 * @param mgr The client manager
+	 * @deprecated Since 3.7.1, use {@link #registerClientManager(String, NetClientManager)}. This method uses the full class name for the <b>id</b> parameter.
 	 */
+	@Deprecated
 	public void registerClientManager(NetClientManager mgr) {
-		this.clientManagers.put(mgr.getClass(), mgr);
+		this.registerClientManager(mgr.getClass().getName(), mgr);
+	}
+
+	/**
+	 * Registers a new {@link NetClientManager} for outgoing connections.
+	 * 
+	 * @param id The identifier for the client manager
+	 * @param mgr The client manager
+	 * @since 3.7.1
+	 */
+	public void registerClientManager(String id, NetClientManager mgr) {
+		this.clientManagers.put(id, mgr);
 	}
 
 	private void initApplication(NetworkApplication app) {
@@ -482,13 +500,33 @@ public final class Proxy implements Application {
 	 * @throws IOException
 	 * @throws IllegalArgumentException If an <code>NetClientManager</code> type was given for which there is no active instance
 	 * @see NetClientManager#connection(ConnectionParameters)
+	 * @deprecated Since 3.7.1, use {@link #connection(String, ConnectionParameters)}. This method uses the full class name of the given type as the <b>cmid</b> parameter.
 	 */
 	public SocketConnection connection(Class<? extends NetClientManager> type, ConnectionParameters parameters) throws IOException {
+		return this.connection(type.getName(), parameters, null);
+	}
+
+	/**
+	 * Creates a new connection instance for an outgoing proxy connection.
+	 * 
+	 * @param cmid The client manager ID passed in {@link #registerClientManager(String, NetClientManager)}
+	 * @param parameters Parameters for this connection
+	 * @param downstreamConnection The downstream connection, if available. Used to set the worker instance used for the new connection
+	 * @return The new connection instance
+	 * @throws IOException
+	 * @throws IllegalArgumentException If <b>cmid</b> is invalid
+	 * @since 3.7.1
+	 * @see NetClientManager#connection(ConnectionParameters)
+	 */
+	public SocketConnection connection(String cmid, ConnectionParameters parameters, SocketConnection downstreamConnection) throws IOException {
 		this.requireState(State.RUNNING);
-		NetClientManager mgr = this.clientManagers.get(type);
+		NetClientManager mgr = this.clientManagers.get(cmid);
 		if(mgr == null)
-			throw new IllegalArgumentException("Cannot connect with type " + type.getName());
-		return mgr.connection(parameters);
+			throw new IllegalArgumentException("Invalid client manager id '" + cmid + "'");
+		SocketConnection conn = mgr.connection(parameters);
+		if(downstreamConnection != null)
+			((org.omegazero.net.socket.AbstractSocketConnection) conn).setWorker(((org.omegazero.net.socket.AbstractSocketConnection) downstreamConnection).getWorker());
+		return conn;
 	}
 
 
@@ -626,8 +664,25 @@ public final class Proxy implements Application {
 		return this.sslContext;
 	}
 
+	/**
+	 * Returns the {@link ApplicationWorkerProvider} for use by plugins for long-running tasks.
+	 * 
+	 * @return The {@code ApplicationWorkerProvider}
+	 */
 	public ApplicationWorkerProvider getServerWorkerProvider() {
 		return this.serverWorkerProvider;
+	}
+
+	/**
+	 * Returns a {@link SessionWorkerProvider} for the given client connection. This method may be passed as a method reference to a {@code NetworkApplicationBuilder} as the worker
+	 * creator.
+	 * 
+	 * @param client The client connection
+	 * @return The {@code SessionWorkerProvider}
+	 * @since 3.7.1
+	 */
+	public SessionWorkerProvider getSessionWorkerProvider(SocketConnection client) {
+		return new SessionWorkerProvider();
 	}
 
 	/**
@@ -719,7 +774,7 @@ public final class Proxy implements Application {
 	 * be <code>null</code>, is selected.
 	 * 
 	 * @param host The hostname to choose a server for
-	 * @param path
+	 * @param path The request path
 	 * @return The {@link UpstreamServer} instance for the given <b>host</b>, or <code>null</code> if no appropriate server was found
 	 */
 	public UpstreamServer getUpstreamServer(String host, String path) {
@@ -732,11 +787,22 @@ public final class Proxy implements Application {
 
 
 	/**
+	 * Returns the currently active instance of <code>Proxy</code>, or <code>null</code> if there is none.
 	 * 
-	 * @return The currently active instance of <code>Proxy</code>, or <code>null</code> if there is none
+	 * @return The instance
 	 */
 	public static Proxy getInstance() {
 		return instance;
+	}
+
+	/**
+	 * Returns the version string of <i>omz-proxy</i>.
+	 * 
+	 * @return The version string
+	 * @since 3.7.1
+	 */
+	public static String getVersion() {
+		return VERSION;
 	}
 
 
@@ -762,6 +828,11 @@ public final class Proxy implements Application {
 	}
 
 
+	/**
+	 * A class used to queue tasks.
+	 * 
+	 * @see Proxy#getServerWorkerProvider()
+	 */
 	public class ApplicationWorkerProvider implements Consumer<Runnable> {
 
 		private ApplicationWorkerProvider() {
@@ -770,6 +841,29 @@ public final class Proxy implements Application {
 		@Override
 		public void accept(Runnable t) {
 			Proxy.this.serverWorker.queue((args) -> {
+				t.run();
+			}, 0);
+		}
+	}
+
+	/**
+	 * A class used for running the connection callbacks in a client session. Each {@code SessionWorkerProvider} is used for a single client connection and all upstream
+	 * connections, and wraps a single {@link TaskQueueExecutor.Handle}.
+	 * 
+	 * @since 3.7.1
+	 * @see Proxy#getSessionWorkerProvider(SocketConnection)
+	 */
+	public class SessionWorkerProvider implements Consumer<Runnable> {
+
+		private final TaskQueueExecutor.Handle handle;
+
+		private SessionWorkerProvider() {
+			this.handle = Proxy.this.serverWorker.newHandle();
+		}
+
+		@Override
+		public void accept(Runnable t) {
+			this.handle.queue((args) -> {
 				t.run();
 			}, 0);
 		}

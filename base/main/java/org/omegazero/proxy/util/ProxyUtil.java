@@ -13,7 +13,6 @@ package org.omegazero.proxy.util;
 
 import java.net.InetSocketAddress;
 
-import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.client.params.ConnectionParameters;
 import org.omegazero.net.client.params.TLSConnectionParameters;
 import org.omegazero.net.socket.SocketConnection;
@@ -24,10 +23,9 @@ public class ProxyUtil {
 
 
 	/**
-	 * Checks if the given <b>hostname</b> matches the expression (<b>expr</b>) containing the wildcard character '<code>*</code>'. The wildcard character matches any
-	 * character, including '<code>.</code>' (dot). If no wildcard character is used in <b>expr</b>, this function behaves exactly the same as
-	 * {@link String#equals(Object)}.<br>
-	 * <br>
+	 * Checks if the given <b>hostname</b> matches the expression (<b>expr</b>) containing the wildcard character '<code>*</code>'. The wildcard character matches any character,
+	 * including '<code>.</code>' (dot). If no wildcard character is used in <b>expr</b>, this function behaves exactly the same as {@link String#equals(Object)}.
+	 * <p>
 	 * <b>Examples:</b>
 	 * <table>
 	 * <tr>
@@ -60,9 +58,8 @@ public class ProxyUtil {
 	 * @param expr
 	 * @param hostname
 	 * @return <code>true</code> if the given hostname matches the expression
-	 * @implNote This function currently cannot handle certain edge cases, for example: expr = <code>a.n*n.a</code> and hostname = <code>a.nnnn.a</code> returns
-	 *           <code>false</code>, even though it should return <code>true</code>. Given that such a hostname expression is quite unlikely to be used in actual
-	 *           configurations, this is fine for now.
+	 * @implNote This function currently cannot handle certain edge cases, for example: expr = <code>a.n*n.a</code> and hostname = <code>a.nnnn.a</code> returns <code>false</code>,
+	 * even though it should return <code>true</code>. Given that such a hostname expression is quite unlikely to be used in actual configurations, this is fine for now.
 	 */
 	public static boolean hostMatches(String expr, String hostname) {
 		int exprlen = expr.length();
@@ -109,15 +106,16 @@ public class ProxyUtil {
 	/**
 	 * Checks if the <b>writeStream</b> (the connection where data is being written to) is connected (or about to be) and is buffering write calls
 	 * ({@link SocketConnection#isWritable()} returns <code>false</code>). If that is the case, reads from the <b>readStream</b> will be blocked using
-	 * {@link SocketConnection#setReadBlock(boolean)} until the <b>writeStream</b> is writable again.<br>
-	 * <br>
+	 * {@link SocketConnection#setReadBlock(boolean)} until the <b>writeStream</b> is writable again.
+	 * <p>
 	 * This method uses the <code>onWrite</code> callback of the <code>SocketConnection</code>, which should not be used when this function is in use.
 	 * 
 	 * @param writeStream The connection where data is being written to
-	 * @param readStream  The connection where reads should be blocked until <b>writeStream</b> is writable again
+	 * @param readStream The connection where reads should be blocked until <b>writeStream</b> is writable again
+	 * @throws ClassCastException If <b>writeStream</b> is not a {@link org.omegazero.net.socket.AbstractSocketConnection}
 	 */
 	public static void handleBackpressure(SocketConnection writeStream, SocketConnection readStream) {
-		synchronized(writeStream.getWriteLock()){
+		synchronized(((org.omegazero.net.socket.AbstractSocketConnection) writeStream).getWriteLock()){
 			if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
 				readStream.setReadBlock(true);
 				writeStream.setOnWritable(() -> {
@@ -132,28 +130,48 @@ public class ProxyUtil {
 	/**
 	 * Connects to an upstream server over TCP, plaintext or encrypted using TLS.
 	 * 
-	 * @param proxy              The proxy instance to connect with
+	 * @param proxy The proxy instance to connect with
 	 * @param downstreamSecurity Whether the client connection was encrypted
-	 * @param userver            The upstream server to connect to
-	 * @param alpn               The protocols to advertise using TLS ALPN
+	 * @param userver The upstream server to connect to
+	 * @param alpn The protocols to advertise using TLS ALPN
 	 * @return The new connection
 	 * @throws java.io.IOException If an IO error occurred
 	 * @since 3.3.1
+	 * @deprecated Since 3.7.1, use {@link #connectUpstreamTCP(Proxy, SocketConnection, boolean, UpstreamServer, String...)} to pass the client connection
 	 */
+	@Deprecated
 	public static SocketConnection connectUpstreamTCP(Proxy proxy, boolean downstreamSecurity, UpstreamServer userver, String... alpn) throws java.io.IOException {
-		Class<? extends NetClientManager> type;
+		return connectUpstreamTCP(proxy, null, downstreamSecurity, userver, alpn);
+	}
+
+	/**
+	 * Connects to an upstream server over TCP, plaintext or encrypted using TLS, depending on the context and server settings.
+	 * 
+	 * @param proxy The proxy instance to connect with
+	 * @param downstreamConnection The client connection
+	 * @param downstreamSecurity Whether the client connection was encrypted
+	 * @param userver The upstream server to connect to
+	 * @param alpn The protocols to advertise using TLS ALPN
+	 * @return The new connection
+	 * @throws java.io.IOException If an IO error occurred
+	 * @since 3.7.1
+	 * @see Proxy#connection(String, ConnectionParameters, SocketConnection)
+	 */
+	public static SocketConnection connectUpstreamTCP(Proxy proxy, SocketConnection downstreamConnection, boolean downstreamSecurity, UpstreamServer userver, String... alpn)
+			throws java.io.IOException {
+		String type;
 		ConnectionParameters params;
 		if((downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
-			type = org.omegazero.net.client.TLSClientManager.class;
+			type = "tcp.client.tls";
 			params = new TLSConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getSecurePort()));
 			((TLSConnectionParameters) params).setAlpnNames(alpn);
 			((TLSConnectionParameters) params).setSniOptions(new String[] { userver.getAddress().getHostName() });
 		}else if(userver.getPlainPort() > 0){
-			type = org.omegazero.net.client.PlainTCPClientManager.class;
+			type = "tcp.client.plain";
 			params = new ConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getPlainPort()));
 		}else
 			throw new RuntimeException("Upstream server " + userver.getAddress() + " neither has a plain nor a secure port set");
 
-		return proxy.connection(type, params);
+		return proxy.connection(type, params, downstreamConnection);
 	}
 }

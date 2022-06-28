@@ -15,15 +15,14 @@ import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Consumer;
+
+import javax.net.ssl.SSLContext;
 
 import org.omegazero.common.eventbus.Event;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
-import org.omegazero.net.client.PlainTCPClientManager;
-import org.omegazero.net.client.TLSClientManager;
-import org.omegazero.net.server.PlainTCPServer;
-import org.omegazero.net.server.TLSServer;
+import org.omegazero.net.common.NetworkApplicationBuilder;
+import org.omegazero.net.server.NetServer;
 import org.omegazero.net.util.TrustManagerUtil;
 import org.omegazero.proxy.config.ProxyConfiguration;
 
@@ -43,26 +42,41 @@ class Defaults {
 		}
 		logger.debug("Defaults init with feature set: ", featureSet);
 
-		Consumer<Runnable> serverTaskHandler = null; // change to proxy worker when concurrency issues are resolved (is that ever going to happen?) (is this even necessary?)
 		ProxyConfiguration config = proxy.getConfig();
 		List<java.net.InetAddress> bindAddresses = config.getBindAddresses();
-		if(featureSetContains(featureSet, "tcp.server.plain") && config.getPortsPlain().size() > 0)
-			proxy.registerServerInstance(new PlainTCPServer(bindAddresses, config.getPortsPlain(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout()));
+		if(featureSetContains(featureSet, "tcp.server.plain") && config.getPortsPlain().size() > 0){
+			NetServer server = NetworkApplicationBuilder.newServer("nio")
+					.bindAddresses(bindAddresses)
+					.ports(config.getPortsPlain())
+					.connectionBacklog(config.getBacklog())
+					.connectionIdleTimeout(proxy.getConnectionIdleTimeout())
+					.workerCreator(proxy::getSessionWorkerProvider)
+					.build();
+			proxy.registerServerInstance(server);
+		}
 		if(featureSetContains(featureSet, "tcp.server.tls") && config.getPortsTls().size() > 0){
 			List<Object> alpnNames = proxy.dispatchEventRes(new Event("proxy_registerALPNOption", false, new Class<?>[0], String.class, true)).getReturnValues();
 			logger.debug("Registered TLS ALPN options: ", alpnNames);
-			TLSServer tlsServer = new TLSServer(bindAddresses, config.getPortsTls(), config.getBacklog(), serverTaskHandler, proxy.getConnectionIdleTimeout(),
-					proxy.getSslContext());
-			tlsServer.setSupportedApplicationLayerProtocols(alpnNames.toArray(new String[alpnNames.size()]));
+			NetServer tlsServer = NetworkApplicationBuilder.newServer("nio")
+					.bindAddresses(bindAddresses)
+					.ports(config.getPortsTls())
+					.connectionBacklog(config.getBacklog())
+					.connectionIdleTimeout(proxy.getConnectionIdleTimeout())
+					.workerCreator(proxy::getSessionWorkerProvider)
+					.sslContext(proxy.getSslContext())
+					.applicationLayerProtocols(alpnNames.toArray(new String[alpnNames.size()]))
+					.build();
 			proxy.registerServerInstance(tlsServer);
 		}
 
-		if(featureSetContains(featureSet, "tcp.client.plain"))
-			proxy.registerClientManager(new PlainTCPClientManager(serverTaskHandler));
+		if(featureSetContains(featureSet, "tcp.client.plain")){
+			proxy.registerClientManager("tcp.client.plain", NetworkApplicationBuilder.newClientManager("nio").build());
+		}
 		if(featureSetContains(featureSet, "tcp.client.tls")){
 			try{
-				proxy.registerClientManager(
-						new TLSClientManager(serverTaskHandler, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates())));
+				SSLContext clientSslContext = SSLContext.getInstance("TLS");
+				clientSslContext.init(null, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates()), null);
+				proxy.registerClientManager("tcp.client.tls", NetworkApplicationBuilder.newClientManager("nio").sslContext(clientSslContext).build());
 			}catch(GeneralSecurityException | IOException e){
 				throw new RuntimeException("Error while loading trusted certificates", e);
 			}
