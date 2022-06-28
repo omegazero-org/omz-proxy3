@@ -9,8 +9,7 @@ package org.omegazero.proxy.http1;
 import org.omegazero.common.config.ConfigObject;
 import org.omegazero.common.eventbus.EventBusSubscriber;
 import org.omegazero.common.eventbus.SubscribeEvent;
-import org.omegazero.net.socket.impl.PlainConnection;
-import org.omegazero.net.socket.impl.TLSConnection;
+import org.omegazero.net.socket.TLSConnection;
 import org.omegazero.proxy.core.Proxy;
 
 @EventBusSubscriber
@@ -39,14 +38,13 @@ public class HTTP1Plugin {
 		if(!this.enable)
 			return;
 		Proxy.getInstance().addHTTPEngineSelector((connection) -> {
-			if(connection instanceof PlainConnection){
-				return HTTP1.class;
-			}else if(connection instanceof TLSConnection){
-				String alpnProtocolName = ((TLSConnection) connection).getAlpnProtocol();
+			if(connection instanceof TLSConnection){
+				String alpnProtocolName = ((TLSConnection) connection).getApplicationProtocol();
 				if(alpnProtocolName == null || alpnProtocolName.equals(HTTP1.HTTP1_ALPN_NAME))
 					return HTTP1.class;
-			}
-			return null;
+				return null;
+			}else
+				return HTTP1.class;
 		});
 	}
 }

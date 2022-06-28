@@ -28,6 +28,7 @@ import org.omegazero.http.h2.util.HTTP2Settings;
 import org.omegazero.http.h2.util.HTTP2Util;
 import org.omegazero.http.netutil.SocketConnectionWritable;
 import org.omegazero.net.common.NetCommon;
+import org.omegazero.net.socket.AbstractSocketConnection;
 import org.omegazero.net.socket.SocketConnection;
 import org.omegazero.proxy.config.HTTPEngineConfig;
 import org.omegazero.proxy.core.Proxy;
@@ -52,6 +53,8 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 	private static final String ATTACHMENT_KEY_REQUEST_FINISHED = "engine_finished";
 	private static final String ATTACHMENT_KEY_PENDING_RESPONSE = "engine_pendingresponse";
 	private static final String ATTACHMENT_KEY_RESPONSE_TIMEOUT = "engine_responseTimeoutId";
+
+	private static final String CONNDBG = "dbg";
 
 
 	private final SocketConnection downstreamConnection;
@@ -471,16 +474,16 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 					long tid = Tasks.timeout(() -> {
 						if(this.downstreamClosed || dsStream.isClosed())
 							return;
-						SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
+						AbstractSocketConnection uconn = (AbstractSocketConnection) ((SocketConnectionWritable) usStream.getConnection()).getConnection();
 						UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
-						logUNetError(uconn.getAttachment(), " Response timeout");
+						logUNetError(uconn.getAttachment(CONNDBG), " Response timeout");
 						try{
 							this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, uconn, request, userver);
 							this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, uconn, userver);
 							usStream.rst(STATUS_CANCEL);
 						}catch(Exception e){
 							this.respondInternalError(request, e);
-							logger.error(uconn.getAttachment(), " Error while handling response timeout: ", e);
+							logger.error(uconn.getAttachment(CONNDBG), " Error while handling response timeout: ", e);
 						}
 					}, this.config.getResponseTimeout()).daemon().getId();
 					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
@@ -492,7 +495,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 	private void prepareResponseStream(HTTPRequest request, MessageStream dsStream, MessageStream usStream, UpstreamServer userver,
 			java.util.function.Consumer<MessageStream> streamClosedHandler) {
-		SocketConnection uconn = ((SocketConnectionWritable) usStream.getConnection()).getConnection();
+		AbstractSocketConnection uconn = (AbstractSocketConnection) ((SocketConnectionWritable) usStream.getConnection()).getConnection();
 		usStream.setOnMessage((responsedata) -> {
 			synchronized(dsStream){
 				if(dsStream.isClosed())
@@ -569,7 +572,8 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 						throw new AssertionError(e);
 					}
 				}else if(dsStream.isExpectingResponse()){
-					logUNetError(uconn.getAttachment(), " Stream ", usStream.getStreamId(), " closed unexpectedly with status ", HTTP2ConnectionError.getStatusCodeName(status));
+					logUNetError(uconn.getAttachment(CONNDBG), " Stream ", usStream.getStreamId(), " closed unexpectedly with status ",
+							HTTP2ConnectionError.getStatusCodeName(status));
 					this.respondUNetError(request, STATUS_BAD_GATEWAY, "Upstream message stream closed unexpectedly", uconn, userver);
 				}
 			}else if(status == 0)
@@ -587,9 +591,9 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		if(!userver.isProtocolSupported("http/2"))
 			throw new HTTP2ConnectionError(HTTP2Constants.STATUS_HTTP_1_1_REQUIRED, true, "HTTP/2 is not supported by the upstream server");
 
-		SocketConnection uconn;
+		AbstractSocketConnection uconn;
 		try{
-			uconn = ProxyUtil.connectUpstreamTCP(this.proxy, true, userver, HTTP2_ALPN);
+			uconn = (AbstractSocketConnection) ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamConnection, true, userver, HTTP2_ALPN);
 		}catch(IOException e){
 			this.respondInternalError(request, e);
 			logger.error("Connection failed: ", e);
@@ -598,13 +602,13 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 		HTTP2Client client = new ProxyHTTP2Client(uconn, this.upstreamClientSettings, super.hpack.getSession(), super.hpack.isUseHuffmanEncoding());
 
-		uconn.setAttachment(this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
+		uconn.setAttachment(CONNDBG, this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
 		uconn.setOnConnect(() -> {
-			logger.debug(uconn.getAttachment(), " Connected");
+			logger.debug(uconn.getAttachment(CONNDBG), " Connected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION, uconn);
 		});
 		uconn.setOnTimeout(() -> {
-			logUNetError(uconn.getAttachment(), " Connect timed out");
+			logUNetError(uconn.getAttachment(CONNDBG), " Connect timed out");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			if(this.downstreamClosed)
 				return;
@@ -629,17 +633,17 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			if(e2 != null)
 				this.respondInternalError(request, e2);
 			if(e instanceof IOException){
-				logUNetError(uconn.getAttachment(), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
+				logUNetError(uconn.getAttachment(CONNDBG), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
 				if(e2 != null)
-					logger.error(uconn.getAttachment(), " Internal error while handling upstream connection error: ", e2);
+					logger.error(uconn.getAttachment(CONNDBG), " Internal error while handling upstream connection error: ", e2);
 			}else{
 				if(e2 != null)
 					e.addSuppressed(e2);
-				logger.error(uconn.getAttachment(), " Internal error: ", e);
+				logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", e);
 			}
 		});
 		uconn.setOnClose(() -> {
-			logger.debug(uconn.getAttachment(), " Disconnected");
+			logger.debug(uconn.getAttachment(CONNDBG), " Disconnected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 			synchronized(this){
 				if(!this.downstreamClosed)

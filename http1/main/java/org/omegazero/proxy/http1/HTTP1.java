@@ -31,8 +31,9 @@ import org.omegazero.http.h1.HTTP1ResponseReceiver;
 import org.omegazero.http.h1.HTTP1Util;
 import org.omegazero.http.h1.MessageBodyDechunker;
 import org.omegazero.net.common.NetCommon;
+import org.omegazero.net.socket.AbstractSocketConnection;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.net.socket.impl.TLSConnection;
+import org.omegazero.net.socket.TLSConnection;
 import org.omegazero.proxy.config.HTTPEngineConfig;
 import org.omegazero.proxy.core.Proxy;
 import org.omegazero.proxy.core.ProxyEvents;
@@ -57,6 +58,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private static final String ATTACHMENT_KEY_UPROTOCOL = "engine_otherProtocol";
 	private static final String ATTACHMENT_KEY_RESPONSE_TIMEOUT = "engine_responseTimeoutId";
 
+	private static final String CONNDBG = "dbg";
+
 
 	private final SocketConnection downstreamConnection;
 	private final Proxy proxy;
@@ -74,8 +77,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private HTTPRequest currentRequest;
 	private long currentRequestTimeoutId = -1;
 	private UpstreamServer currentUpstreamServer;
-	private SocketConnection currentUpstreamConnection;
-	private Map<UpstreamServer, SocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
+	private AbstractSocketConnection currentUpstreamConnection;
+	private Map<UpstreamServer, AbstractSocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
 
 	public HTTP1(SocketConnection downstreamConnection, Proxy proxy, HTTPEngineConfig config) {
 		this.downstreamConnection = Objects.requireNonNull(downstreamConnection);
@@ -265,7 +268,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				if(request.hasResponse())
 					break upstream;
 
-				SocketConnection uconn;
+				AbstractSocketConnection uconn;
 				if((uconn = this.upstreamConnections.get(this.currentUpstreamServer)) == null){
 					if((uconn = this.createUpstreamConnection(this.currentUpstreamServer)) == null)
 						break upstream;
@@ -325,7 +328,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	}
 
 	private void handleResponseTimeout() {
-		logUNetError(this.currentUpstreamConnection.getAttachment(), " Response timeout");
+		logUNetError(this.currentUpstreamConnection.getAttachment(CONNDBG), " Response timeout");
 		try{
 			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, this.currentRequest, this.currentUpstreamServer);
 			this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
@@ -334,7 +337,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			this.responseReceiver.reset();
 		}catch(Exception e){
 			this.respondInternalError(e);
-			logger.error(this.currentUpstreamConnection.getAttachment(), " Error while handling response timeout: ", e);
+			logger.error(this.currentUpstreamConnection.getAttachment(CONNDBG), " Error while handling response timeout: ", e);
 		}
 	}
 
@@ -352,7 +355,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		}
 	}
 
-	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, SocketConnection uconn) throws IOException {
+	private byte[] processResponsePacket(byte[] data, UpstreamServer userver, AbstractSocketConnection uconn) throws IOException {
 		assert Thread.holdsLock(this);
 		if(this.currentUpstreamConnection != uconn || this.currentRequest == null)
 			throw new IOException("Unexpected data");
@@ -395,7 +398,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE, this.downstreamConnection, uconn, response, userver);
 				if(response.getStatus() == STATUS_SWITCHING_PROTOCOLS){
 					request.setAttachment(ATTACHMENT_KEY_UPROTOCOL, 1);
-					logger.debug(uconn.getAttachment(), " Protocol changed");
+					logger.debug(uconn.getAttachment(CONNDBG), " Protocol changed");
 					this.writeHTTPMsg(this.downstreamConnection, response, null);
 					return data;
 				}else if(response.isIntermediateMessage()){
@@ -438,29 +441,29 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		return null;
 	}
 
-	private SocketConnection createUpstreamConnection(UpstreamServer userver) {
+	private AbstractSocketConnection createUpstreamConnection(UpstreamServer userver) {
 		assert Thread.holdsLock(this);
 		if(!userver.isProtocolSupported("http/1.1")){
 			this.respondError(this.currentRequest, STATUS_HTTP_VERSION_NOT_SUPPORTED, HTTPCommon.MSG_PROTO_NOT_SUPPORTED + "HTTP/1");
 			return null;
 		}
 
-		SocketConnection uconn;
+		AbstractSocketConnection uconn;
 		try{
-			uconn = ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamSecurity, userver, HTTP1_ALPN);
+			uconn = (AbstractSocketConnection) ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamConnection, this.downstreamSecurity, userver, HTTP1_ALPN);
 		}catch(IOException e){
 			this.respondInternalError(e);
 			logger.error("Connection failed: ", e);
 			return null;
 		}
 
-		uconn.setAttachment(this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
+		uconn.setAttachment(CONNDBG, this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
 		uconn.setOnConnect(() -> {
-			logger.debug(uconn.getAttachment(), " Connected");
+			logger.debug(uconn.getAttachment(CONNDBG), " Connected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION, uconn);
 		});
 		uconn.setOnTimeout(() -> {
-			logUNetError(uconn.getAttachment(), " Connect timeout");
+			logUNetError(uconn.getAttachment(CONNDBG), " Connect timeout");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			synchronized(this){
 				if(this.currentUpstreamConnection == uconn && this.currentRequest != null)
@@ -486,17 +489,17 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if(e2 != null)
 				this.respondInternalError(e2);
 			if(e instanceof IOException){
-				logUNetError(uconn.getAttachment(), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
+				logUNetError(uconn.getAttachment(CONNDBG), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
 				if(e2 != null)
-					logger.error(uconn.getAttachment(), " Internal error while handling upstream connection error: ", e2);
+					logger.error(uconn.getAttachment(CONNDBG), " Internal error while handling upstream connection error: ", e2);
 			}else{
 				if(e2 != null)
 					e.addSuppressed(e2);
-				logger.error(uconn.getAttachment(), " Internal error: ", e);
+				logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", e);
 			}
 		});
 		uconn.setOnClose(() -> {
-			logger.debug(uconn.getAttachment(), " Disconnected");
+			logger.debug(uconn.getAttachment(CONNDBG), " Disconnected");
 			if(this.downstreamConnection.isConnected())
 				this.downstreamConnection.setReadBlock(false); // release backpressure
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
@@ -506,13 +509,13 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 					HTTPResponse response = this.currentRequest.getOther();
 					if(response == null){
 						// did not receive a response
-						logUNetError(uconn.getAttachment(), " Connection closed unexpectedly");
+						logUNetError(uconn.getAttachment(CONNDBG), " Connection closed unexpectedly");
 						this.respondUNetError(this.currentRequest, STATUS_BAD_GATEWAY, HTTPCommon.MSG_UPSTREAM_CONNECTION_CLOSED, uconn, userver);
 					}else{
 						MessageBodyDechunker dechunker = (MessageBodyDechunker) response.getAttachment(ATTACHMENT_KEY_DECHUNKER);
 						if(dechunker != null){ // may be null if respond() was used
 							if(!dechunker.hasReceivedAllData()){
-								logUNetError(uconn.getAttachment(), " Closing downstream connection because upstream connection closed before all data was received");
+								logUNetError(uconn.getAttachment(CONNDBG), " Closing downstream connection because upstream connection closed before all data was received");
 								this.downstreamConnection.close();
 							}else
 								dechunker.end();

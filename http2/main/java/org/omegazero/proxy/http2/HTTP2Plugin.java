@@ -9,7 +9,7 @@ package org.omegazero.proxy.http2;
 import org.omegazero.common.config.ConfigObject;
 import org.omegazero.common.eventbus.EventBusSubscriber;
 import org.omegazero.common.eventbus.SubscribeEvent;
-import org.omegazero.net.socket.impl.TLSConnection;
+import org.omegazero.net.socket.TLSConnection;
 import org.omegazero.proxy.core.Proxy;
 
 @EventBusSubscriber
@@ -37,7 +37,7 @@ public class HTTP2Plugin {
 	public void onInit() {
 		Proxy.getInstance().addHTTPEngineSelector((connection) -> {
 			if(connection instanceof TLSConnection){
-				String alpnProtocolName = ((TLSConnection) connection).getAlpnProtocol();
+				String alpnProtocolName = ((TLSConnection) connection).getApplicationProtocol();
 				if(alpnProtocolName.equals("h2"))
 					return HTTP2.class;
 			}
