@@ -80,6 +80,9 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private List<String> trustedCertificates = new ArrayList<>();
 
 	@ConfigurationOption
+	private int workerThreadCount = -1;
+
+	@ConfigurationOption
 	private Map<String, ConfigObject> pluginConfig = new HashMap<>();
 	@ConfigurationOption
 	private Map<String, ConfigObject> engineConfig = new HashMap<>();
@@ -260,6 +263,10 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public List<String> getTrustedCertificates() {
 		return this.trustedCertificates;
+	}
+
+	public int getWorkerThreadCount() {
+		return this.workerThreadCount;
 	}
 
 	public ConfigObject getPluginConfigFor(String key) {

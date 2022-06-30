@@ -158,13 +158,15 @@ public final class Proxy implements Application {
 
 		this.dispatchEvent(ProxyEvents.PREINIT);
 
+		this.loadErrdocs();
+
 		this.updateState(State.INIT);
 		logger.info("Loading SSL context; ", this.config.getTlsAuthData().size(), " server names configured");
 		this.loadSSLContext();
 
-		this.loadErrdocs();
-
-		this.serverWorker = TaskQueueExecutor.fromSequential().name("Worker").workerThreads(-1).build();
+		int wtc = this.config.getWorkerThreadCount();
+		logger.info("Setting up worker threads (configured max: ", wtc, ")");
+		this.serverWorker = TaskQueueExecutor.fromSequential().name("Worker").workerThreads(wtc).build();
 		this.serverWorker.setErrorHandler((e) -> {
 			logger.fatal("Error in server worker: ", e);
 			Proxy.this.shutdown();
@@ -309,7 +311,6 @@ public final class Proxy implements Application {
 
 	private void loadErrdocs() throws IOException {
 		if(!this.config.getErrdocFiles().isEmpty()){
-			logger.info("Loading error documents");
 			for(String t : this.config.getErrdocFiles().keySet()){
 				String file = this.config.getErrdocFiles().get(t);
 				logger.debug("Loading errdoc '", file, "' (", t, ")");
