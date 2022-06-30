@@ -62,6 +62,7 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerPortTLS | number | The port number where the default upstream server is listening for TLS connections. | no | `443` | 3.1.0 |
 | upstreamServerProtocols | array(string) | A list of protocol names the default upstream server supports. The list of supported protocols is checked by the running HTTP engine and a specific protocol name is usually also defined by it. | no | `["http/1.1"]` | 3.3.1 |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | (empty) | 3.1.0 |
+| workerThreadCount | number | The maximum number of worker threads. A negative value sets the maximum worker thread count to the number of available processors. | no | `-1` | 3.7.1 |
 | pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omegazero/omz-proxy3-plugins) for more information. | no | (empty) | 3.1.0 |
 | engineConfig | object | Contains configuration objects passed to the specified HTTP engine. The key of each object in this object is the name of the HTTP engine to pass the object to; this may either be the fully qualified class name or only the class name. | no | (empty) | 3.3.1 |
 | defaultEngineConfig | object | Properties in this object will be copied to each HTTP engine configuration object, if not already set. See **Common HTTP engine parameters** for common properties. | no | (empty) | 3.3.1 |
@@ -96,7 +97,38 @@ This is a list of common properties for the default or a specific HTTP engine co
 }
 ```
 
-This configuration listens on the default local address and HTTP/HTTPS ports and forwards all requests to "192.168.0.11" and the default HTTP ports. It contains a single key/certificate pair for TLS which is served to all TLS clients. Finally, it adds an additional error document of type "application/json".
+This configuration listens on the default local address and HTTP/HTTPS ports and forwards all requests to "192.168.0.11" and the default HTTP ports. It contains a single key/certificate pair for TLS which is served to all TLS clients. And it adds an additional error document of type "application/json".
+
+To completely disable the default request logging, the following may be added to the configuration above:
+```json
+	"defaultEngineConfig": {
+		"disableDefaultRequestLog": true
+	},
+```
+
+Example of a HTTP-implementation-specific option ([http2](https://git.omegazero.org/omegazero/omz-proxy3/src/branch/master/http2)):
+```json
+	"engineConfig": {
+		"HTTP2": {
+			"disablePromiseRequestLog": true
+		}
+	},
+```
+
+When using a plugin such as [virtual-host](https://git.omegazero.org/omegazero/omz-proxy3-plugins/src/branch/master/virtual-host), the configuration might contain something like this:
+```json
+	"pluginConfig": {
+		"vhost": {
+			"hosts": [
+				{
+					"hostname": "example.com",
+					"address": "192.168.0.11"
+				}
+			]
+		}
+	},
+```
+In this case, `upstreamServerAddress` may be set to `null` to return an error message on any other requested domain name.
 
 ## System Properties
 
