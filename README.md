@@ -7,7 +7,7 @@
 
 ## Installation
 
-*omz-proxy3* requires Java 8 or above and these three dependencies which need to be added to the classpath: [omz-java-lib](https://git.omegazero.org/omegazero/omz-java-lib), [omz-net-lib](https://git.omegazero.org/omegazero/omz-net-lib) and [JSON-java](https://github.com/stleary/JSON-java).
+*omz-proxy3* requires Java 8 or above and these dependencies which need to be added to the classpath: [omz-java-lib](https://git.omegazero.org/omegazero/omz-java-lib), [omz-net-lib](https://git.omegazero.org/omegazero/omz-net-lib), [omz-http-lib](https://git.omegazero.org/omegazero/omz-http-lib) and [JSON-java](https://github.com/stleary/JSON-java) (see release notes for minimum versions).
 
 A JAR file containing the proxy and all dependencies is available [here](https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all), which can then be run using this command to start the proxy (note that you need to use the correct file name of the JAR file):
 ```bash
