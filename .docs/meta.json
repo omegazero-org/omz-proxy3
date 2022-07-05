@@ -1,0 +1,21 @@
+{
+	"version": 2,
+	"title": "omz-proxy v3 documentation",
+	"icon": "https://static.omegazero.org/p/w/icon_transparent.png",
+	"meta": {
+		"description": "Documentation for omz-proxy v3, the HTTP reverse proxy used for omegazero.org web services",
+		"og:image": "https://static.omegazero.org/p/w/icon_transparent.png"
+	},
+	"content": {
+		"default": "@Overview hidden",
+		"Overview": "overview.md",
+		"sep1": "- line",
+		"Installation": "installation.md",
+		"Command line arguments": "cmdargs.md",
+		"Configuration file": "config.md",
+		"HTTP implementations": {
+			"HTTP 1.1": "http/http1.md",
+			"HTTP 2": "http/http2.md"
+		}
+	}
+}

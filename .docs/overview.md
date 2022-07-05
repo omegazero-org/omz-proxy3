@@ -5,9 +5,5 @@
 [![Release](https://api.omegazero.org/v1/git/getrepobadge?author=omegazero&repository=omz-proxy3&metric=release&color=09b&width=100)](https://git.omegazero.org/omegazero/omz-proxy3/releases)
 [![Docs](https://docs.omegazero.org/api/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.omegazero.org/d/omegazero/omz-proxy3/)
 
-*omz-proxy* is the HTTP reverse proxy used for [omegazero.org](https://omegazero.org/) web services.
-
-## Documentation
-
-Documentation is now available [here](https://docs.omegazero.org/d/omegazero/omz-proxy3/).
+Javadoc is available here: <https://docs.omegazero.org/javadoc/omz-proxy3/>.
 
