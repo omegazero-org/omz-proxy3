@@ -19,7 +19,7 @@ import java.security.GeneralSecurityException;
 import java.security.PrivateKey;
 import java.security.cert.X509Certificate;
 import java.util.AbstractMap.SimpleEntry;
-import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,9 +48,9 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private int backlog = 0;
 
 	@ConfigurationOption(description = "Plaintext ports the proxy server should listen on")
-	private List<Integer> portsPlain = new ArrayList<>();
+	private List<Integer> portsPlain = Collections.singletonList(80);
 	@ConfigurationOption(description = "TLS ports the proxy server should listen on")
-	private List<Integer> portsTls = new ArrayList<>();
+	private List<Integer> portsTls = Collections.emptyList();
 
 	@ConfigurationOption(description = "TLS key and certificate file names for different server names")
 	private final Map<String, Entry<String, String>> tlsAuth = new HashMap<>();
@@ -70,14 +70,14 @@ public class ProxyConfiguration extends JSONConfiguration {
 	@ConfigurationOption
 	private int upstreamServerAddressTTL = -1;
 	@ConfigurationOption(description = "The plaintext port of the upstream server")
-	private int upstreamServerPortPlain = 80;
+	private int upstreamServerPortPlain = 8080;
 	@ConfigurationOption(description = "The TLS port of the upstream server")
-	private int upstreamServerPortTLS = 443;
+	private int upstreamServerPortTLS = 8443;
 	@ConfigurationOption
 	private Set<String> upstreamServerProtocols = null;
 
 	@ConfigurationOption(description = "List of X509 certificate file names to trust in addition to the default installed certificates")
-	private List<String> trustedCertificates = new ArrayList<>();
+	private List<String> trustedCertificates = Collections.emptyList();
 
 	@ConfigurationOption
 	private int workerThreadCount = -1;
@@ -184,7 +184,7 @@ public class ProxyConfiguration extends JSONConfiguration {
 			// JSONArray check already done because it is a list
 			((JSONArray) jsonObject).forEach((obj) -> {
 				if(ProxyConfiguration.this.bindAddresses == null)
-					ProxyConfiguration.this.bindAddresses = new ArrayList<>();
+					ProxyConfiguration.this.bindAddresses = new java.util.ArrayList<>();
 				if(obj == JSONObject.NULL){
 					ProxyConfiguration.this.bindAddresses.add(null);
 				}else if(obj instanceof String){
