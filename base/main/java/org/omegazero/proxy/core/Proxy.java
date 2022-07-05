@@ -178,14 +178,20 @@ public final class Proxy implements Application {
 		this.dispatchEvent(ProxyEvents.INIT);
 
 		this.updateState(State.STARTING);
+		int nAppCount = 0;
 		for(NetServer server : this.serverInstances){
 			this.initServerInstance(server);
+			nAppCount++;
 		}
 		for(NetClientManager mgr : this.clientManagers.values()){
 			this.initApplication(mgr);
+			nAppCount++;
 		}
+		if(nAppCount == 0)
+			throw new IllegalStateException("No network applications were started");
 
 		this.updateState(State.RUNNING);
+		logger.info("Initialization complete (", nAppCount, " network applications started)");
 	}
 
 
