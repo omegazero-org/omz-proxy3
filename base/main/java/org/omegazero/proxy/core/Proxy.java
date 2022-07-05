@@ -126,7 +126,7 @@ public final class Proxy implements Application {
 		this.updateState(State.PREINIT);
 		String configCmdData = args.getValue("config");
 		if(configCmdData != null){
-			this.loadConfiguration(configCmdData.getBytes());
+			this.loadConfiguration(configCmdData.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 		}else{
 			String configFile = args.getValueOrDefault("configFile", "config.json");
 			logger.info("Loading configuration '", configFile, "'");
@@ -503,6 +503,7 @@ public final class Proxy implements Application {
 	 * @see NetClientManager#connection(ConnectionParameters)
 	 * @deprecated Since 3.7.1, use {@link #connection(String, ConnectionParameters)}. This method uses the full class name of the given type as the <b>cmid</b> parameter.
 	 */
+	@Deprecated
 	public SocketConnection connection(Class<? extends NetClientManager> type, ConnectionParameters parameters) throws IOException {
 		return this.connection(type.getName(), parameters, null);
 	}
