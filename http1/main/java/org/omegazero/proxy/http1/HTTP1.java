@@ -136,7 +136,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		if(request != this.currentRequest)
 			throw new IllegalArgumentException("Can only respond to the current request");
 		if(!this.downstreamConnection.isConnected())
-			throw new IllegalStateException("Connection is no longer active");
+			return;
 		if(this.currentRequestTimeoutId >= 0){ // this is possible when receiving invalid requests
 			Tasks.clear(this.currentRequestTimeoutId);
 			this.currentRequestTimeoutId = -1;
@@ -313,12 +313,13 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private void handleRequestTimeout() {
 		logger.debug(this.downstreamConnectionDbgstr, " Request timeout");
 		try{
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TIMEOUT, this.downstreamConnection, this.currentRequest);
-			if(this.currentRequest == null || !this.currentRequest.hasResponse())
-				this.respondError(this.currentRequest, STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
+			HTTPRequest request = this.currentRequest;
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TIMEOUT, this.downstreamConnection, request);
+			if(request == null || !request.hasResponse())
+				this.respondError(request, STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
 			this.requestReceiver.reset();
-			if(this.currentRequest != null)
-				this.endRequest(this.currentRequest);
+			if(request != null)
+				this.endRequest(request);
 			if(this.currentUpstreamConnection != null)
 				this.currentUpstreamConnection.close();
 		}catch(Exception e){
@@ -330,9 +331,12 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private void handleResponseTimeout() {
 		logUNetError(this.currentUpstreamConnection.getAttachment(CONNDBG), " Response timeout");
 		try{
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, this.currentRequest, this.currentUpstreamServer);
-			this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
-					this.currentUpstreamServer);
+			HTTPRequest request = this.currentRequest;
+			if(request != null){
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_TIMEOUT, this.downstreamConnection, this.currentUpstreamConnection, request, this.currentUpstreamServer);
+				this.respondUNetError(request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_RESPONSE_TIMEOUT, this.currentUpstreamConnection,
+						this.currentUpstreamServer);
+			}
 			this.currentUpstreamConnection.destroy();
 			this.responseReceiver.reset();
 		}catch(Exception e){
@@ -520,7 +524,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 							}else
 								dechunker.end();
 						}
-						if(this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL))
+						// currentRequest may be set to null by dechunker.end()
+						if(this.currentRequest != null && this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL))
 							this.downstreamConnection.close();
 					}
 				}
@@ -572,9 +577,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	}
 
 	private static void postHandleHTTPMessage(boolean wasChunked, HTTPMessage msg, SocketConnection sourceConnection, SocketConnection targetConnection) {
-		if(wasChunked && !msg.isChunkedTransfer())
+		if(wasChunked && !msg.isChunkedTransfer()){
 			throw new IllegalStateException("Cannot unchunkify a response body");
-		else if(!wasChunked && msg.isChunkedTransfer()){
+		}else if(!wasChunked && msg.isChunkedTransfer()){
 			msg.deleteHeader("content-length");
 			msg.setHeader("transfer-encoding", "chunked");
 		}
