@@ -117,10 +117,12 @@ public class ProxyUtil {
 	public static void handleBackpressure(SocketConnection writeStream, SocketConnection readStream) {
 		synchronized(((org.omegazero.net.socket.AbstractSocketConnection) writeStream).getWriteLock()){
 			if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
-				readStream.setReadBlock(true);
+				if(readStream.isConnected())
+					readStream.setReadBlock(true);
 				writeStream.setOnWritable(() -> {
 					writeStream.setOnWritable(null);
-					readStream.setReadBlock(false);
+					if(readStream.isConnected())
+						readStream.setReadBlock(false);
 				});
 			}
 		}
