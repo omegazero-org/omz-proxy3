@@ -11,6 +11,10 @@
  */
 package org.omegazero.proxy.core;
 
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Set;
+
 import org.omegazero.common.eventbus.Event;
 import org.omegazero.common.eventbus.EventBus;
 import org.omegazero.common.eventbus.EventResult;
@@ -60,6 +64,8 @@ public final class ProxyEvents {
 	public static final Event UPSTREAM_CONNECTION_TIMEOUT = new Event("onUpstreamConnectionTimeout", new Class<?>[] { SocketConnection.class });
 	public static final Event MISSING_TLS_DATA = new Event("getMissingTLSData", new Class<?>[] { String.class, String.class }, java.util.Map.Entry.class);
 
+	private static final Set<String> validEventNames = new java.util.HashSet<>();
+
 
 	public static int runEvent(EventBus eventBus, Event event, Object... args) {
 		int c;
@@ -85,5 +91,31 @@ public final class ProxyEvents {
 			res = eventBus.dispatchEventRes(event, args);
 		}
 		return res;
+	}
+
+	/**
+	 * Checks whether an event with the given <b>name</b> is defined in this class.
+	 *
+	 * @param name The name
+	 * @return {@code true} if the given event name is valid
+	 * @since 3.7.2
+	 */
+	public static boolean isValidEventName(String name){
+		return validEventNames.contains(name);
+	}
+
+
+	static{
+		try{
+			Field[] fields = ProxyEvents.class.getFields();
+			for(Field field : fields){
+				if(Modifier.isPublic(field.getModifiers()) && Modifier.isStatic(field.getModifiers()) && field.getType() == Event.class){
+					Event event = (Event) field.get(null);
+					validEventNames.add(event.getMethodName());
+				}
+			}
+		}catch(ReflectiveOperationException e){
+			throw new AssertionError(e);
+		}
 	}
 }

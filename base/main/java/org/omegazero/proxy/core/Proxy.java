@@ -274,10 +274,14 @@ public final class Proxy implements Application {
 				logger.trace("Registering plugin class at event bus: ", p.getMainClassType().getName());
 				String eventsList = p.getAdditionalOption("events");
 				String[] events;
-				if(eventsList != null)
+				if(eventsList != null && eventsList.length() > 0)
 					events = eventsList.split(",");
 				else
 					events = new String[0];
+				for(String event : events){
+					if(!(ProxyEvents.isValidEventName(event) || event.contains("_") /* special event names */))
+						throw new IllegalArgumentException("Invalid event '" + event + "' listed in plugin configuration file");
+				}
 				this.proxyEventBus.register(p.getMainClassInstance(), events);
 			}catch(Exception e){
 				logger.error("Error while registering plugin '" + p.getName() + "': ", e);
