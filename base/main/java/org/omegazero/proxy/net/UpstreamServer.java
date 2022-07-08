@@ -13,8 +13,7 @@ package org.omegazero.proxy.net;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.Collection;
 
 import org.omegazero.common.logging.Logger;
 
@@ -22,34 +21,80 @@ public class UpstreamServer {
 
 	private static final Logger logger = Logger.create();
 
+	/**
+	 * An immutable collection containing the single default supported procotol, {@code http/1.1}, used if no protocols are passed in the constructor.
+	 */
+	public static final Collection<String> PROTOCOLS_DEFAULT = java.util.Collections.singleton("http/1.1");
+	/**
+	 * An immutable collection representing support for all protocols.
+	 */
+	public static final Collection<String> PROTOCOLS_ALL = java.util.Collections.singleton(null);
+
 
 	private InetAddress address;
 	private final int addressTTL;
 	private final int plainPort;
 	private final int securePort;
-	private final Set<String> protocols;
+	private final Collection<String> protocols;
 
 	private long addressExpiration;
 
+	/**
+	 * Creates an {@code UpstreamServer} instance with no parameters set, and protocols set to {@link #PROTOCOLS_ALL}.
+	 * <p>
+	 * This may be used by plugins to create "virtual" upstream servers, where the plugin returns this instance of an {@code UpstreamServer} in {@code selectUpstreamServer} and then
+	 * responds to requests with that upstream server. When an {@code UpstreamServer} with <b>address</b> set to {@code null} is selected for a request, all request events are run normally
+	 * as if the request is being proxied, but no upstream connection actually exists. Any handler must respond in the {@code onHTTPRequestEnded} event or before, otherwise an error is returned.
+	 *
+	 * @since 3.7.2
+	 */
+	public UpstreamServer() {
+		this(null, -1, -1, -1, PROTOCOLS_ALL);
+	}
+
+	/**
+	 * Creates an {@code UpstreamServer} instance.
+	 *
+	 * @param address The address of the server
+	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
+	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
+	 */
 	public UpstreamServer(InetAddress address, int plainPort, int securePort) {
 		this(address, -1, plainPort, securePort, null);
 	}
 
-	public UpstreamServer(InetAddress address, int plainPort, int securePort, Set<String> protocols) {
+	/**
+	 * Creates an {@code UpstreamServer} instance.
+	 *
+	 * @param address The address of the server
+	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
+	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
+	 * @param protocols The list of protocol names the server supports
+	 * @since 3.3.1
+	 */
+	public UpstreamServer(InetAddress address, int plainPort, int securePort, Collection<String> protocols) {
 		this(address, -1, plainPort, securePort, protocols);
 	}
 
-	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Set<String> protocols) {
+	/**
+	 * Creates an {@code UpstreamServer} instance.
+	 *
+	 * @param address The address of the server
+	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL}
+	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
+	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
+	 * @param protocols The list of protocol names the server supports. If {@code null}, the {@linkplain #PROTOCOLS_DEFAULT default set} is used
+	 * @since 3.4.1
+	 */
+	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Collection<String> protocols) {
 		this.address = address;
 		this.addressTTL = addressTTL;
 		this.plainPort = plainPort;
 		this.securePort = securePort;
 		if(protocols != null)
 			this.protocols = protocols;
-		else{
-			this.protocols = new HashSet<String>();
-			this.protocols.add("http/1.1");
-		}
+		else
+			this.protocols = PROTOCOLS_DEFAULT;
 
 		if(addressTTL >= 0)
 			this.addressExpiration = System.nanoTime() + addressTTL * 1000000000L;
@@ -75,45 +120,55 @@ public class UpstreamServer {
 
 
 	/**
+	 * Returns the address of this <code>UpstreamServer</code>. May be {@code null}.
 	 * 
 	 * @return The address of this <code>UpstreamServer</code>
+	 * @throws NullPointerException If no {@code address} was passed in the constructor
 	 */
 	public InetAddress getAddress() {
-		this.reresolveAddressIfNecessary();
+		if(this.address != null)
+			this.reresolveAddressIfNecessary();
 		return this.address;
 	}
 
 	/**
-	 * 
-	 * @return The number of seconds the address of a resolved DNS name is valid; negative if configured to be valid forever (default)
+	 * Returns the number of seconds to cache a resolved {@code InetAddress}. After this time expires, the address is re-resolved using {@link InetAddress#getByName}. {@code -1} means
+	 * there is no timeout.
+	 *
+	 * @return The address TTL in seconds
 	 */
 	public int getAddressTTL() {
 		return this.addressTTL;
 	}
 
 	/**
-	 * 
-	 * @return The port on which this <code>UpstreamServer</code> is listening for plaintext connections
+	 * Returns the port on which this {@code UpstreamServer} listens for plaintext connections. {@code -1} means there is no such port.
+	 *
+	 * @return The plaintext port
 	 */
 	public int getPlainPort() {
 		return this.plainPort;
 	}
 
 	/**
-	 * 
-	 * @return The port on which this <code>UpstreamServer</code> is listening for encrypted connections
+	 * Returns the port on which this {@code UpstreamServer} listens for encrypted connections. {@code -1} means there is no such port.
+	 *
+	 * @return The encrypted port
 	 */
 	public int getSecurePort() {
 		return this.securePort;
 	}
 
 	/**
-	 * 
+	 * Returns {@code true} if this {@code UpstreamServer} was configured to support the given protocol name.
+	 *
 	 * @param proto The name of the protocol
-	 * @return <code>true</code> if this <code>UpstreamServer</code> was configured to support the given protocol name
+	 * @return {@code true} if the given protocol is supported
 	 * @since 3.3.1
 	 */
 	public boolean isProtocolSupported(String proto) {
+		if(this.protocols == PROTOCOLS_ALL)
+			return true;
 		return this.protocols.contains(proto);
 	}
 
