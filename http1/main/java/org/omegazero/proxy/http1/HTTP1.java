@@ -548,7 +548,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				}while(d != null && d.length > 0);
 			}
 		});
-		this.upstreamConnections.put(this.currentUpstreamServer, uconn);
+		this.upstreamConnections.put(userver, uconn);
 		return uconn;
 	}
 
