@@ -188,7 +188,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		try{
 			this.respondError(this.currentRequest, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 		}catch(Throwable e2){
-			e.addSuppressed(e2);
+			if(e != null)
+				e.addSuppressed(e2);
 		}
 	}
 
@@ -236,15 +237,18 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 
 			MessageBodyDechunker dechunker = new MessageBodyDechunker(request, (reqdata) -> {
 				boolean last = reqdata.length == 0;
-				if(this.currentUpstreamConnection != null){
+				if(this.currentUpstreamServer != null){
 					HTTPRequestData hmd = new HTTPRequestData(request, last, reqdata);
 					this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_DATA, this.downstreamConnection, hmd, this.currentUpstreamServer);
-					reqdata = hmd.getData(); // data in hmd might have been modified by an event handler
-					transferChunk(request, reqdata, last, this.downstreamConnection, this.currentUpstreamConnection);
+					// ! reqdata is possibly invalid after this point; data in hmd might have been modified by an event handler
+					if(this.currentUpstreamConnection != null)
+						transferChunk(request, hmd.getData(), last, this.downstreamConnection, this.currentUpstreamConnection);
 					if(last)
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, this.currentUpstreamServer);
 				}
 				if(last){
+					if(this.currentUpstreamConnection == null && !request.hasResponse())
+						throw new IllegalStateException("Non-forwarded request has no response after onHTTPRequestEnded");
 					this.endRequest(request);
 				}
 			});
@@ -256,36 +260,40 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 
 			// init connection to upstream server; breaking here requires a queued response, and will cause simply sending the response after the request ended
 			upstream: {
-				this.currentUpstreamServer = this.proxy.getUpstreamServer(hostname, request.getPath());
-				if(this.currentUpstreamServer == null){
+				UpstreamServer userver = this.proxy.getUpstreamServer(hostname, request.getPath());
+				if(userver == null){
 					logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 					this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);
 					this.respondError(request, STATUS_NOT_FOUND, HTTPCommon.MSG_NO_SERVER);
 					break upstream;
 				}
 
-				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request, this.currentUpstreamServer);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request, userver);
 				if(request.hasResponse())
 					break upstream;
 
 				AbstractSocketConnection uconn;
-				if((uconn = this.upstreamConnections.get(this.currentUpstreamServer)) == null){
-					if((uconn = this.createUpstreamConnection(this.currentUpstreamServer)) == null)
-						break upstream;
-				}
+				if(userver.getAddress() != null){
+					if((uconn = this.upstreamConnections.get(userver)) == null)
+						if((uconn = this.createUpstreamConnection(userver)) == null)
+							break upstream;
+				}else
+					uconn = null;
 
 				boolean wasChunked = request.isChunkedTransfer();
-				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, request, this.currentUpstreamServer);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, request, userver);
+				this.currentUpstreamServer = userver;
 
 				postHandleHTTPMessage(wasChunked, request, this.downstreamConnection, uconn);
 
-				this.writeHTTPMsg(uconn, request, null);
+				if(uconn != null){
+					this.writeHTTPMsg(uconn, request, null);
 
-				this.currentUpstreamConnection = uconn;
-				if(!uconn.hasConnected())
-					uconn.connect(this.config.getUpstreamConnectionTimeout());
+					this.currentUpstreamConnection = uconn;
+					if(!uconn.hasConnected())
+						uconn.connect(this.config.getUpstreamConnectionTimeout());
+				}
 			}
-			assert this.currentUpstreamConnection != null || request.hasResponse() : "Non-forwarded request has no response";
 		}else if(this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL)){
 			if(this.currentUpstreamConnection == null || !this.currentUpstreamConnection.isConnected()){
 				logger.warn("Received unknown protocol data but upstream connection is no longer connected");
@@ -583,7 +591,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			msg.deleteHeader("content-length");
 			msg.setHeader("transfer-encoding", "chunked");
 		}
-		ProxyUtil.handleBackpressure(targetConnection, sourceConnection);
+		if(targetConnection != null)
+			ProxyUtil.handleBackpressure(targetConnection, sourceConnection);
 	}
 
 	private static void logUNetError(Object... o) {

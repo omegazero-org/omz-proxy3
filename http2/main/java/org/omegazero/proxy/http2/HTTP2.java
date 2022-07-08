@@ -231,7 +231,8 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		try{
 			this.respondError(request, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 		}catch(Throwable e2){
-			e.addSuppressed(e2);
+			if(e != null)
+				e.addSuppressed(e2);
 		}
 	}
 
@@ -293,6 +294,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		MessageStream usStream = this.doHTTPRequestUpstream(clientStream, request);
 
 		UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
+		assert usStream == null || userver != null; // userver is always non-null if usStream exists
 
 		clientStream.setOnClosed((status) -> {
 			baseCloseHandler.accept(status);
@@ -306,47 +308,51 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		});
 
 		if(endStream){
-			if(usStream != null)
+			if(userver != null)
 				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, userver);
 			this.endRequest(request, clientStream, usStream);
 		}else{
 			clientStream.setOnData((requestdata) -> {
-				if(usStream != null){
-					try{
+				try{
+					if(userver != null){
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_DATA, this.downstreamConnection, requestdata, userver);
-						if(usStream.isClosed()){
-							if(!request.hasResponse())
-								this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
-						}else if(!usStream.sendData(requestdata.getData(), requestdata.isLastPacket()))
-							clientStream.setReceiveData(false);
+						if(usStream != null){
+							if(usStream.isClosed()){
+								if(!request.hasResponse())
+									this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
+							}else if(!usStream.sendData(requestdata.getData(), requestdata.isLastPacket()))
+								clientStream.setReceiveData(false);
+						}
 						if(requestdata.isLastPacket())
 							this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, userver);
-					}catch(Exception e){
-						if(e instanceof HTTP2ConnectionError)
-							throw e;
-						this.respondInternalError(request, e);
-						logger.error("Error while processing request data: ", e);
 					}
+				}catch(Exception e){
+					if(e instanceof HTTP2ConnectionError)
+						throw e;
+					this.respondInternalError(request, e);
+					logger.error("Error while processing request data: ", e);
 				}
 				if(requestdata.isLastPacket())
 					this.endRequest(request, clientStream, usStream);
 			});
 			clientStream.setOnTrailers((trailers) -> {
-				if(usStream != null){
-					try{
+				try{
+					if(userver != null){
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TRAILERS, this.downstreamConnection, trailers, userver);
-						if(usStream.isClosed()){
-							if(!request.hasResponse())
-								this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
-						}else
-							usStream.sendTrailers(trailers);
+						if(usStream != null){
+							if(usStream.isClosed()){
+								if(!request.hasResponse())
+									this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
+							}else
+								usStream.sendTrailers(trailers);
+						}
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, userver); // trailers always imply EOS
-					}catch(Exception e){
-						if(e instanceof HTTP2ConnectionError)
-							throw e;
-						this.respondInternalError(request, e);
-						logger.error("Error while processing request trailers: ", e);
 					}
+				}catch(Exception e){
+					if(e instanceof HTTP2ConnectionError)
+						throw e;
+					this.respondInternalError(request, e);
+					logger.error("Error while processing request trailers: ", e);
 				}
 				this.endRequest(request, clientStream, usStream);
 			});
@@ -371,11 +377,16 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			this.respondError(request, STATUS_NOT_FOUND, HTTPCommon.MSG_NO_SERVER);
 			return null;
 		}
-		request.setAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER, userver);
 
 		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE, this.downstreamConnection, request, userver);
 		if(request.hasResponse())
 			return null;
+
+		if(userver.getAddress() == null){
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, request, userver);
+			request.setAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER, userver);
+			return null;
+		}
 
 		final HTTP2Client client;
 		synchronized(this){
@@ -401,6 +412,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			logger.trace("Created new upstream request stream ", usStream.getStreamId(), " for request ", request.getAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID));
 
 		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, request, userver);
+		request.setAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER, userver);
 
 
 		usStream.setOnPushPromise((promiseRequest) -> {
@@ -461,6 +473,12 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		synchronized(dsStream){
 			synchronized(request){
 				request.setAttachment(ATTACHMENT_KEY_REQUEST_FINISHED, true);
+				if(usStream == null && !request.hasResponse()){
+					Exception e = new IllegalStateException("Non-forwarded request has no response after onHTTPRequestEnded");
+					this.respondInternalError(request, e);
+					logger.error(this.downstreamConnectionDbgstr, " endRequest: ", e);
+					return;
+				}
 				HTTPResponseData res;
 				if((res = (HTTPResponseData) request.removeAttachment(ATTACHMENT_KEY_PENDING_RESPONSE)) != null){
 					synchronized(super.hpack){
