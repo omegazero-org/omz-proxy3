@@ -260,13 +260,18 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			};
 			mstream.setOnMessage((requestdata) -> {
 				HTTPRequest request = (HTTPRequest) requestdata.getHttpMessage();
+				boolean endStream = requestdata.isLastPacket();
 				try{
-					this.processHTTPRequest(mstream, request, requestdata.isLastPacket(), baseCloseHandler);
+					this.processHTTPRequest(mstream, request, endStream, baseCloseHandler);
 				}catch(Exception e){
 					if(e instanceof HTTP2ConnectionError)
 						throw e;
 					this.respondInternalError(request, e);
 					logger.error("Error while processing request: ", e);
+					if(endStream)
+						this.endRequest(request, mstream, null);
+					else
+						throw new HTTP2ConnectionError(STATUS_INTERNAL_ERROR, true);
 				}
 			});
 			mstream.setOnClosed(baseCloseHandler);
