@@ -194,7 +194,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				return;
 			synchronized(request){
 				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+					Tasks.I.clear(request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 				if(request.hasAttachment(ATTACHMENT_KEY_REQUEST_FINISHED)){
 					try{
 						synchronized(super.hpack){
@@ -494,7 +494,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 							dsStream.sendHTTPMessage(res.getHttpMessage(), true);
 					}
 				}else if(usStream != null && this.config.getResponseTimeout() > 0){
-					long tid = Tasks.timeout(() -> {
+					Object tid = Tasks.I.timeout(() -> {
 						if(this.downstreamClosed || dsStream.isClosed())
 							return;
 						AbstractSocketConnection uconn = (AbstractSocketConnection) ((SocketConnectionWritable) usStream.getConnection()).getConnection();
@@ -508,7 +508,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 							this.respondInternalError(request, e);
 							logger.error(uconn.getAttachment(CONNDBG), " Error while handling response timeout: ", e);
 						}
-					}, this.config.getResponseTimeout()).daemon().getId();
+					}, this.config.getResponseTimeout()).daemon();
 					request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
 				}
 			}
@@ -526,7 +526,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				HTTPResponse response = (HTTPResponse) responsedata.getHttpMessage();
 				try{
 					if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-						Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+						Tasks.I.clear(request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 
 					if(!HTTPCommon.setRequestResponse(request, response))
 						return;

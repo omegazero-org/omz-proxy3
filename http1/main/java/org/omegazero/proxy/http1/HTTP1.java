@@ -75,7 +75,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private boolean downstreamClosed;
 
 	private HTTPRequest currentRequest;
-	private long currentRequestTimeoutId = -1;
+	private Object currentRequestTimeoutId;
 	private UpstreamServer currentUpstreamServer;
 	private AbstractSocketConnection currentUpstreamConnection;
 	private Map<UpstreamServer, AbstractSocketConnection> upstreamConnections = new java.util.concurrent.ConcurrentHashMap<>();
@@ -118,10 +118,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		this.downstreamClosed = true;
 		for(SocketConnection uconn : this.upstreamConnections.values())
 			uconn.close();
-		if(this.currentRequestTimeoutId >= 0)
-			Tasks.clear(this.currentRequestTimeoutId);
+		Tasks.I.clear(this.currentRequestTimeoutId);
 		if(this.currentRequest != null && this.currentRequest.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-			Tasks.clear((long) this.currentRequest.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+			Tasks.I.clear(this.currentRequest.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 	}
 
 	@Override
@@ -137,9 +136,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			throw new IllegalArgumentException("Can only respond to the current request");
 		if(!this.downstreamConnection.isConnected())
 			return;
-		if(this.currentRequestTimeoutId >= 0){ // this is possible when receiving invalid requests
-			Tasks.clear(this.currentRequestTimeoutId);
-			this.currentRequestTimeoutId = -1;
+		if(this.currentRequestTimeoutId != null){ // this is possible when receiving invalid requests
+			Tasks.I.clear(this.currentRequestTimeoutId);
+			this.currentRequestTimeoutId = null;
 		}
 
 		HTTPResponse response = responsedata.getHttpMessage();
@@ -156,7 +155,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		if(request != null){
 			synchronized(request){
 				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-					Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+					Tasks.I.clear(request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 				if(!request.hasAttachment(ATTACHMENT_KEY_DECHUNKER)){
 					this.writeHTTPMsg(this.downstreamConnection, response, data);
 					this.currentRequest = null;
@@ -202,8 +201,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 	private void processPacket(byte[] data) throws InvalidHTTPMessageException {
 		assert Thread.holdsLock(this);
 		if(this.currentRequest == null){ // expecting a new request
-			if(this.currentRequestTimeoutId < 0)
-				this.currentRequestTimeoutId = Tasks.timeout(this::handleRequestTimeout, this.config.getRequestTimeout()).daemon().getId();
+			if(this.currentRequestTimeoutId == null)
+				this.currentRequestTimeoutId = Tasks.I.timeout(this::handleRequestTimeout, this.config.getRequestTimeout()).daemon();
 
 			int offset;
 			try{
@@ -215,7 +214,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if(offset < 0)
 				return;
 
-			Tasks.clear(this.currentRequestTimeoutId);
+			Tasks.I.clear(this.currentRequestTimeoutId);
 
 			HTTPRequest request = this.requestReceiver.get(org.omegazero.proxy.http.ProxyHTTPRequest::new);
 			this.requestReceiver.reset();
@@ -361,7 +360,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				this.writeHTTPMsg(this.downstreamConnection, res.getHttpMessage(), res.getData());
 				this.currentRequest = null;
 			}else if(this.currentUpstreamConnection != null && this.config.getResponseTimeout() > 0){
-				long tid = Tasks.timeout(this::handleResponseTimeout, this.config.getResponseTimeout()).daemon().getId();
+				Object tid = Tasks.I.timeout(this::handleResponseTimeout, this.config.getResponseTimeout()).daemon();
 				request.setAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT, tid);
 			}
 		}
@@ -395,7 +394,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			data = Arrays.copyOfRange(data, offset, data.length);
 
 			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-				Tasks.clear((long) request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+				Tasks.I.clear(request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 
 			response.setOther(request);
 			if(this.config.isEnableHeaders()){
