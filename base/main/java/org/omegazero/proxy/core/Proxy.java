@@ -89,7 +89,7 @@ public final class Proxy implements Application {
 
 	private ProxyKeyManager keyManager;
 	private SSLContext sslContext;
-	private long tlsDataReloadInterval = -1;
+	private Object tlsDataReloadInterval;
 
 	private TaskQueueExecutor serverWorker;
 	private ApplicationWorkerProvider serverWorkerProvider;
@@ -136,7 +136,7 @@ public final class Proxy implements Application {
 			if(args.getBooleanOrDefault("configFileReload", false)){
 				java.io.File configF = filePath.toFile();
 				this.configLastModified = configF.lastModified();
-				Tasks.interval((a) -> {
+				Tasks.I.interval((a) -> {
 					long lm = configF.lastModified();
 					if(lm > Proxy.this.configLastModified){
 						Proxy.this.configLastModified = lm;
@@ -239,17 +239,17 @@ public final class Proxy implements Application {
 		config.load();
 		this.config = config;
 
-		if(this.tlsDataReloadInterval >= 0)
-			Tasks.clear(this.tlsDataReloadInterval);
+		if(this.tlsDataReloadInterval != null)
+			Tasks.I.clear(this.tlsDataReloadInterval);
 		if(this.config.getTlsAuthReloadInterval() > 0){
-			this.tlsDataReloadInterval = Tasks.interval((args) -> {
+			this.tlsDataReloadInterval = Tasks.I.interval((args) -> {
 				try{
 					Proxy.this.config.reloadTLSAuthData();
 					Proxy.this.keyManager.tlsDataReload();
 				}catch(Exception e){
 					logger.error("Error while reloading TLS auth data: ", e);
 				}
-			}, this.config.getTlsAuthReloadInterval() * 1000).daemon().getId();
+			}, this.config.getTlsAuthReloadInterval() * 1000).daemon();
 		}
 
 		if(this.config.getUpstreamServerAddress() != null)
