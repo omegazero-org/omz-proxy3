@@ -134,8 +134,6 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			return;
 		if(request != this.currentRequest)
 			throw new IllegalArgumentException("Can only respond to the current request");
-		if(!this.downstreamConnection.isConnected())
-			return;
 		if(this.currentRequestTimeoutId != null){ // this is possible when receiving invalid requests
 			Tasks.I.clear(this.currentRequestTimeoutId);
 			this.currentRequestTimeoutId = null;
@@ -145,6 +143,9 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		if(!HTTPCommon.setRequestResponse(request, response))
 			return;
 		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", response.getStatus());
+
+		if(!this.downstreamConnection.isConnected())
+			return;
 
 		if(!response.headerExists("connection"))
 			response.setHeader("connection", "close");
@@ -257,7 +258,6 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if(!this.config.isDisableDefaultRequestLog())
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
 
-			// init connection to upstream server; breaking here requires a queued response, and will cause simply sending the response after the request ended
 			upstream: {
 				UpstreamServer userver = this.proxy.getUpstreamServer(hostname, request.getPath());
 				if(userver == null){
@@ -295,7 +295,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			}
 		}else if(this.currentRequest.hasAttachment(ATTACHMENT_KEY_UPROTOCOL)){
 			if(this.currentUpstreamConnection == null || !this.currentUpstreamConnection.isConnected()){
-				logger.warn("Received unknown protocol data but upstream connection is no longer connected");
+				logUNetError(this.downstreamConnectionDbgstr, " Received unknown protocol data but upstream connection is no longer connected");
 				this.downstreamConnection.destroy();
 				return;
 			}
