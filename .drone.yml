@@ -31,7 +31,7 @@ steps:
   - mkdir -p build/base/bin/META-INF
   - cp LICENSE_BIN build/base/bin/META-INF/LICENSE
   - find base/main/java -iname "*.java" > build/base/srcfiles
-  - javac -version -Werror -verbose -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar @build/base/srcfiles
+  - javac -version -Werror -verbose -Xlint:all,-processing -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar @build/base/srcfiles
   - cp -r base/main/resources/* build/base/bin/
   - jar cf build-base.jar -C build/base/bin .
   depends_on:
@@ -44,7 +44,7 @@ steps:
   - mkdir -p build/http1/bin/META-INF
   - cp LICENSE_BIN build/http1/bin/META-INF/LICENSE
   - find http1/main/java -iname "*.java" > build/http1/srcfiles
-  - javac -version -Werror -verbose -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
+  - javac -version -Werror -verbose -Xlint:all,-processing -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
   - cp -r http1/main/resources/* build/http1/bin/
   - jar cf build-http1.jar -C build/http1/bin .
   depends_on:
