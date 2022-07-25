@@ -54,7 +54,7 @@ public final class ProxyEvents {
 	public static final Event HTTP_RESPONSE_ENDED = new Event("onHTTPResponseEnded",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPResponse.class, UpstreamServer.class });
 	public static final Event HTTP_FORWARD_FAILED = new Event("onHTTPForwardFailed",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class }); // since 3.4.1
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class, int.class, String.class }); // since 3.7.3
 	public static final Event HTTP_RESPONSE_TIMEOUT = new Event("onHTTPResponseTimeout",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class }); // since 3.6.1
 	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);

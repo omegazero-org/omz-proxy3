@@ -74,7 +74,7 @@ public interface HTTPEngineResponderMixin {
 	public default void respondUNetError(Proxy proxy, HTTPRequest request, int status, String message, SocketConnection uconn, UpstreamServer userver) {
 		if(request.hasResponse())
 			return;
-		proxy.dispatchEvent(ProxyEvents.HTTP_FORWARD_FAILED, this.getDownstreamConnection(), uconn, request, userver);
+		proxy.dispatchEvent(ProxyEvents.HTTP_FORWARD_FAILED, this.getDownstreamConnection(), uconn, request, userver, status, message);
 		if(!request.hasResponse())
 			this.respondError(proxy, request, status, HTTPStatus.getStatusName(status), message);
 	}
