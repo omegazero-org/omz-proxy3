@@ -46,6 +46,7 @@ public final class HTTPCommon {
 	public static final String MSG_UPSTREAM_CONNECT_FAILED = "An error occurred while connecting to the upstream server";
 	public static final String MSG_UPSTREAM_CONNECT_TIMEOUT = "Connection to the upstream server timed out";
 	public static final String MSG_UPSTREAM_RESPONSE_TIMEOUT = "The upstream server took too long to respond";
+	public static final String MSG_UPSTREAM_RESPONSE_INVALID = "Invalid HTTP response from upstream server";
 	public static final String MSG_UPSTREAM_CONNECTION_ERROR = "An error occurred in the connection to the upstream server";
 	public static final String MSG_UPSTREAM_CONNECTION_CLOSED = "Connection to the upstream server closed unexpectedly";
 	public static final String MSG_PROTO_NOT_SUPPORTED = "Unable to proxy request because the upstream server does not support ";
@@ -147,7 +148,7 @@ public final class HTTPCommon {
 		else if(e instanceof java.net.SocketException)
 			return MSG_UPSTREAM_CONNECTION_ERROR + ": " + e.getMessage();
 		else if(e instanceof InvalidHTTPMessageException)
-			return "Invalid HTTP response from upstream server";
+			return MSG_UPSTREAM_RESPONSE_INVALID + ": " + e.getMessage();
 		else if(e instanceof java.io.IOException)
 			return MSG_UPSTREAM_CONNECTION_ERROR + ": IO error";
 		else
