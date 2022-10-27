@@ -144,7 +144,7 @@ public final class Proxy implements Application {
 							logger.info("Configuration file was modified, reloading");
 							Proxy.this.reloadConfiguration();
 						}catch(Exception e){
-							logger.warn("Error while reloading configuration: ", e.toString());
+							logger.error("Error while reloading configuration: ", e);
 						}
 					}
 				}, 5000).daemon();
@@ -297,12 +297,25 @@ public final class Proxy implements Application {
 
 	private void pushPluginConfig() {
 		for(Plugin p : this.pluginManager){
+			ConfigObject pconfig = this.config.getPluginConfigFor(p.getId());
 			try{
+				p.initPluginConfig(pconfig);
+			}catch(Exception e){
+				throw new RuntimeException("Error reloading configuration of plugin '" + p.getName() + "': " + e, e);
+			}
+			try{
+				// backward compatibility
 				java.lang.reflect.Method configMethod = p.getMainClassType().getDeclaredMethod("configurationReload", ConfigObject.class);
-				configMethod.setAccessible(true);
-				configMethod.invoke(p.getMainClassInstance(), this.config.getPluginConfigFor(p.getId()));
+				if(!configMethod.isAnnotationPresent(org.omegazero.common.plugins.ExtendedPluginConfiguration.class)){
+					logger.warn("Plugin '" + p.getName() + "': Use of deprecated configurationReload(ConfigObject) configuration API;"
+							+ " use @ExtendedPluginConfiguration and @ConfigurationOption annotations instead");
+					configMethod.setAccessible(true);
+					configMethod.invoke(p.getMainClassInstance(), pconfig);
+				}
 			}catch(java.lang.reflect.InvocationTargetException e){
 				throw new RuntimeException("Error in config reload method of plugin '" + p.getName() + "'", e);
+			}catch(NoSuchMethodException e){
+				// ignore
 			}catch(ReflectiveOperationException e){
 				logger.warn("Error while attempting to call config reload method of plugin '" + p.getName() + "': ", e.toString());
 			}
