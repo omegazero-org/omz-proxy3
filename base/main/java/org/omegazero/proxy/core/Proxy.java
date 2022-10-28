@@ -129,7 +129,7 @@ public final class Proxy implements Application {
 			this.loadConfiguration(configCmdData.getBytes(java.nio.charset.StandardCharsets.UTF_8));
 		}else{
 			String configFile = args.getValueOrDefault("configFile", "config.json");
-			logger.info("Loading configuration '", configFile, "'");
+			logger.info("Using configuration '", configFile, "'");
 			Path filePath = Paths.get(configFile).toAbsolutePath();
 			this.loadConfiguration(filePath);
 			this.configFile = filePath;
@@ -297,6 +297,7 @@ public final class Proxy implements Application {
 
 	private void pushPluginConfig() {
 		for(Plugin p : this.pluginManager){
+			logger.trace("Applying plugin configuration for '", p.getName(), "'");
 			ConfigObject pconfig = this.config.getPluginConfigFor(p.getId());
 			try{
 				p.initPluginConfig(pconfig);
@@ -467,13 +468,18 @@ public final class Proxy implements Application {
 	}
 
 	private void onNewConnection(SocketConnection conn) {
-		String msgToProxy = this.debugStringForConnection(conn, null);
-		logger.debug(msgToProxy, " Connected");
+		final String msgToProxy;
+		if(logger.debug()){
+			msgToProxy = this.debugStringForConnection(conn, null);
+			logger.debug(msgToProxy, " Connected");
+		}else
+			msgToProxy = null;
 
 		final AtomicReference<HTTPEngine> engineRef = new AtomicReference<>();
 
 		conn.setOnClose(() -> {
-			logger.debug(msgToProxy, " Disconnected");
+			if(logger.debug())
+				logger.debug(msgToProxy, " Disconnected");
 			HTTPEngine engine = engineRef.get();
 			if(engine != null)
 				engine.close();
@@ -493,7 +499,8 @@ public final class Proxy implements Application {
 
 		HTTPEngine engine = this.createHTTPEngineInstance(engineType, conn);
 		engineRef.set(engine);
-		logger.debug(msgToProxy, " HTTPEngine type: ", engineType.getName());
+		if(logger.debug())
+			logger.debug(msgToProxy, " HTTPEngine type: ", engineType.getName());
 
 		conn.setOnData(engine::processData);
 	}
@@ -564,7 +571,8 @@ public final class Proxy implements Application {
 	 * @see EventBus#dispatchEvent(Event, Object...)
 	 */
 	public int dispatchEvent(Event event, Object... args) {
-		logger.trace("Proxy EventBus event <fast>: '", event.getMethodName(), "' ", event.getEventSignature());
+		if(logger.debug())
+			logger.trace("Proxy EventBus event <fast>: '", event.getMethodName(), "' ", event.getEventSignature());
 		return ProxyEvents.runEvent(this.proxyEventBus, event, args);
 	}
 
@@ -577,7 +585,8 @@ public final class Proxy implements Application {
 	 * @see EventBus#dispatchEventRes(Event, Object...)
 	 */
 	public EventResult dispatchEventRes(Event event, Object... args) {
-		logger.trace("Proxy EventBus event <res>: '", event.getMethodName(), "' ", event.getEventSignature());
+		if(logger.debug())
+			logger.trace("Proxy EventBus event <res>: '", event.getMethodName(), "' ", event.getEventSignature());
 		return ProxyEvents.runEventRes(this.proxyEventBus, event, args);
 	}
 
