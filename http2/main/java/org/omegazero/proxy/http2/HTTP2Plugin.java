@@ -7,6 +7,7 @@
 package org.omegazero.proxy.http2;
 
 import org.omegazero.common.config.ConfigObject;
+import org.omegazero.common.config.ConfigurationOption;
 import org.omegazero.common.eventbus.EventBusSubscriber;
 import org.omegazero.common.eventbus.SubscribeEvent;
 import org.omegazero.net.socket.TLSConnection;
@@ -16,11 +17,8 @@ import org.omegazero.proxy.core.Proxy;
 public class HTTP2Plugin {
 
 
+	@ConfigurationOption
 	private boolean enable;
-
-	public synchronized void configurationReload(ConfigObject config) {
-		this.enable = config.optBoolean("enable", true);
-	}
 
 
 	@SubscribeEvent
@@ -38,7 +36,7 @@ public class HTTP2Plugin {
 		Proxy.getInstance().addHTTPEngineSelector((connection) -> {
 			if(connection instanceof TLSConnection){
 				String alpnProtocolName = ((TLSConnection) connection).getApplicationProtocol();
-				if(alpnProtocolName.equals("h2"))
+				if("h2".equals(alpnProtocolName))
 					return HTTP2.class;
 			}
 			return null;

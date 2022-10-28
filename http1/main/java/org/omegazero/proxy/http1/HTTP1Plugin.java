@@ -7,6 +7,7 @@
 package org.omegazero.proxy.http1;
 
 import org.omegazero.common.config.ConfigObject;
+import org.omegazero.common.config.ConfigurationOption;
 import org.omegazero.common.eventbus.EventBusSubscriber;
 import org.omegazero.common.eventbus.SubscribeEvent;
 import org.omegazero.net.socket.TLSConnection;
@@ -16,11 +17,8 @@ import org.omegazero.proxy.core.Proxy;
 public class HTTP1Plugin {
 
 
-	private boolean enable;
-
-	public synchronized void configurationReload(ConfigObject config) {
-		this.enable = config.optBoolean("enable", true);
-	}
+	@ConfigurationOption
+	private boolean enable = true;
 
 
 	@SubscribeEvent
