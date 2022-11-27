@@ -231,8 +231,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			if(this.config.isEnableHeaders())
 				HTTPCommon.setDefaultHeaders(this.proxy, request);
 
-			String hostname = request.getAuthority();
-			if(hostname == null)
+			if(request.getAuthority() == null)
 				throw new InvalidHTTPMessageException("Missing Host header", true);
 
 			MessageBodyDechunker dechunker = new MessageBodyDechunker(request, (reqdata) -> {
@@ -259,7 +258,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
 
 			upstream: {
-				UpstreamServer userver = this.proxy.getUpstreamServer(hostname, request.getPath());
+				UpstreamServer userver = this.proxy.getUpstreamServer(request.getAuthority(), request.getPath());
 				if(userver == null){
 					logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 					this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);
