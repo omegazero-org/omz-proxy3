@@ -18,7 +18,7 @@ public class HTTP2Plugin {
 
 
 	@ConfigurationOption
-	private boolean enable;
+	private boolean enable = true;
 
 
 	@SubscribeEvent
