@@ -129,7 +129,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 					index += HTTP2Util.getClientPrefaceLength();
 					this.prefaceReceived = true;
 					ControlStream cs = new ControlStream(super.connection, super.settings);
-					super.streams.put(0, cs);
+					super.registerStream(cs);
 					cs.setOnSettingsUpdate((settings) -> {
 						super.hpack.setEncoderDynamicTableMaxSizeSettings(settings.get(SETTINGS_HEADER_TABLE_SIZE));
 						if(settings.get(SETTINGS_ENABLE_PUSH) == 0)
@@ -177,7 +177,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		HTTPResponse response = responsedata.getHttpMessage();
 		if(!HTTPCommon.setRequestResponse(request, response))
 			return;
-		MessageStream stream = (MessageStream) super.streams.get(streamId);
+		MessageStream stream = (MessageStream) super.getStream(streamId);
 		if(stream == null)
 			throw new IllegalStateException("Invalid stream");
 		logger.debug(this.downstreamConnectionDbgstr, " Responding with status ", response.getStatus());
@@ -254,9 +254,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			logger.trace("Created new stream ", mstream.getStreamId(), " for HEADERS frame");
 			Consumer<Integer> baseCloseHandler = (status) -> {
 				logger.trace("Request stream ", mstream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
-				synchronized(super.closeWaitStreams){
-					super.closeWaitStreams.add(mstream);
-				}
+				super.streamClosed(mstream);
 			};
 			mstream.setOnMessage((requestdata) -> {
 				HTTPRequest request = (HTTPRequest) requestdata.getHttpMessage();
@@ -450,9 +448,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 			ppDSStream.setOnClosed((status) -> {
 				logger.trace("Push promise request stream ", ppDSStream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
-				synchronized(super.closeWaitStreams){
-					super.closeWaitStreams.add(ppDSStream);
-				}
+				super.streamClosed(ppDSStream);
 				if(status != HTTP2Constants.STATUS_NO_ERROR){
 					try{
 						ppUSStream.rst(HTTP2Constants.STATUS_CANCEL);
