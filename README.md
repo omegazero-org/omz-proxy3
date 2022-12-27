@@ -7,6 +7,9 @@
 
 *omz-proxy* is the HTTP reverse proxy used for [omegazero.org](https://omegazero.org/) web services.
 
+Prebuilt JARs: <https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy>
+Prebuilt JARs including dependencies: <https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all>
+
 ## Documentation
 
 Documentation is now available [here](https://docs.omegazero.org/d/omegazero/omz-proxy3/).
