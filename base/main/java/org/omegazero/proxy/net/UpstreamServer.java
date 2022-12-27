@@ -17,7 +17,12 @@ import java.util.Collection;
 
 import org.omegazero.common.logging.Logger;
 
-public class UpstreamServer {
+/**
+ * Contains information about another server where requests can be forwarded to.
+ */
+public class UpstreamServer implements java.io.Serializable {
+
+	private static final long serialVersionUID = 1L;
 
 	private static final Logger logger = Logger.create();
 
@@ -37,7 +42,7 @@ public class UpstreamServer {
 	private final int securePort;
 	private final Collection<String> protocols;
 
-	private long addressExpiration;
+	private transient long addressExpiration;
 
 	/**
 	 * Creates an {@code UpstreamServer} instance with no parameters set, and protocols set to {@link #PROTOCOLS_ALL}.
@@ -105,7 +110,7 @@ public class UpstreamServer {
 		if(this.addressTTL < 0)
 			return;
 		long time = System.nanoTime();
-		if(time <= this.addressExpiration)
+		if(this.addressExpiration > 0 && time <= this.addressExpiration)
 			return;
 		String hostname = this.address.getHostName();
 		try{
@@ -121,6 +126,8 @@ public class UpstreamServer {
 
 	/**
 	 * Returns the address of this <code>UpstreamServer</code>. May be {@code null}.
+	 * <p>
+	 * If {@code addressTTL} was set in the constructor, this method may re-resolve the configured {@code address} if necessary.
 	 * 
 	 * @return The address of this <code>UpstreamServer</code>
 	 * @throws NullPointerException If no {@code address} was passed in the constructor
@@ -133,7 +140,7 @@ public class UpstreamServer {
 
 	/**
 	 * Returns the number of seconds to cache a resolved {@code InetAddress}. After this time expires, the address is re-resolved using {@link InetAddress#getByName}. {@code -1} means
-	 * there is no timeout.
+	 * there is no timeout. Note that the {@code InetAddress} implementation may also cache name resolutions internally (see {@link InetAddress}).
 	 *
 	 * @return The address TTL in seconds
 	 */
@@ -187,6 +194,6 @@ public class UpstreamServer {
 
 	@Override
 	public String toString() {
-		return this.address + ":" + this.plainPort + "/" + this.securePort;
+		return "UpstreamServer{" + this.address + ":" + this.plainPort + "/" + this.securePort + "}";
 	}
 }
