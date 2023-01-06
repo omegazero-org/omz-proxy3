@@ -14,6 +14,7 @@ package org.omegazero.proxy.net;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
+import java.util.Collections;
 
 import org.omegazero.common.logging.Logger;
 
@@ -29,11 +30,11 @@ public class UpstreamServer implements java.io.Serializable {
 	/**
 	 * An immutable collection containing the single default supported procotol, {@code http/1.1}, used if no protocols are passed in the constructor.
 	 */
-	public static final Collection<String> PROTOCOLS_DEFAULT = java.util.Collections.singleton("http/1.1");
+	public static final Collection<String> PROTOCOLS_DEFAULT = Collections.singleton("http/1.1");
 	/**
 	 * An immutable collection representing support for all protocols.
 	 */
-	public static final Collection<String> PROTOCOLS_ALL = java.util.Collections.singleton(null);
+	public static final Collection<String> PROTOCOLS_ALL = Collections.singleton(null);
 
 
 	private InetAddress address;
@@ -97,7 +98,7 @@ public class UpstreamServer implements java.io.Serializable {
 		this.plainPort = plainPort;
 		this.securePort = securePort;
 		if(protocols != null)
-			this.protocols = protocols;
+			this.protocols = Collections.unmodifiableCollection(protocols);
 		else
 			this.protocols = PROTOCOLS_DEFAULT;
 
@@ -179,6 +180,18 @@ public class UpstreamServer implements java.io.Serializable {
 		return this.protocols.contains(proto);
 	}
 
+	/**
+	 * Returns the unmodifiable list of protocol names this {@code UpstreamServer} supports, in the order of preference (from high to low).
+	 * <p>
+	 * This list may be identity equal to {@link #PROTOCOLS_ALL} (containing a {@code null} element), indicating this {@code UpstreamServer} was configured to support all protocols.
+	 *
+	 * @return The list of procotols
+	 * @since 3.9.1
+	 */
+	public Collection<String> getSupportedProcotols(){
+		return this.protocols;
+	}
+
 	@Override
 	public int hashCode() {
 		return this.address.hashCode() + 36575 * this.plainPort + 136575 * this.securePort;
@@ -189,7 +202,7 @@ public class UpstreamServer implements java.io.Serializable {
 		if(o == null || !(o instanceof UpstreamServer))
 			return false;
 		UpstreamServer u = (UpstreamServer) o;
-		return u.address.equals(this.address) && u.plainPort == this.plainPort && u.securePort == this.securePort;
+		return u.address.equals(this.address) && u.addressTTL == this.addressTTL && u.plainPort == this.plainPort && u.securePort == this.securePort && u.protocols.equals(this.protocols);
 	}
 
 	@Override
