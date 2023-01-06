@@ -52,7 +52,7 @@ class Defaults {
 					.connectionIdleTimeout(proxy.getConnectionIdleTimeout())
 					.workerCreator(proxy::getSessionWorkerProvider)
 					.build();
-			proxy.registerServerInstance(server);
+			proxy.getRegistry().registerServerInstance(server);
 		}
 		if(featureSetContains(featureSet, "tcp.server.tls") && config.getPortsTls().size() > 0){
 			List<Object> alpnNames = proxy.dispatchEventRes(new Event("proxy_registerALPNOption", false, new Class<?>[0], String.class, true)).getReturnValues();
@@ -66,17 +66,17 @@ class Defaults {
 					.sslContext(proxy.getSslContext())
 					.applicationLayerProtocols(alpnNames.toArray(new String[alpnNames.size()]))
 					.build();
-			proxy.registerServerInstance(tlsServer);
+			proxy.getRegistry().registerServerInstance(tlsServer);
 		}
 
 		if(featureSetContains(featureSet, "tcp.client.plain")){
-			proxy.registerClientManager("tcp.client.plain", NetworkApplicationBuilder.newClientManager("nio").build());
+			proxy.getRegistry().registerClientManager("tcp.client.plain", NetworkApplicationBuilder.newClientManager("nio").build());
 		}
 		if(featureSetContains(featureSet, "tcp.client.tls")){
 			try{
 				SSLContext clientSslContext = SSLContext.getInstance("TLS");
 				clientSslContext.init(null, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates()), null);
-				proxy.registerClientManager("tcp.client.tls", NetworkApplicationBuilder.newClientManager("nio").sslContext(clientSslContext).build());
+				proxy.getRegistry().registerClientManager("tcp.client.tls", NetworkApplicationBuilder.newClientManager("nio").sslContext(clientSslContext).build());
 			}catch(GeneralSecurityException | IOException e){
 				throw new RuntimeException("Error while loading trusted certificates", e);
 			}

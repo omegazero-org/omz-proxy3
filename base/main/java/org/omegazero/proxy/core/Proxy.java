@@ -18,10 +18,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.security.GeneralSecurityException;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -68,8 +64,6 @@ public final class Proxy implements Application {
 	 */
 	public static final String VERSION = "$BUILDVERSION";
 
-	private static final String DEFAULT_ERRDOC_LOCATION = "/org/omegazero/proxy/resources/errdoc.html";
-
 
 	private static Proxy instance;
 
@@ -94,15 +88,11 @@ public final class Proxy implements Application {
 	private TaskQueueExecutor serverWorker;
 	private ApplicationWorkerProvider serverWorkerProvider;
 
-	private final List<Function<SocketConnection, Class<? extends HTTPEngine>>> httpEngineSelectors = new ArrayList<>();
-
-	private final Map<String, HTTPErrdoc> errdocs = new HashMap<>();
-	private HTTPErrdoc errdocDefault;
-
 	private UpstreamServer defaultUpstreamServer;
 
-	private List<NetServer> serverInstances = new ArrayList<>();
-	private Map<String, NetClientManager> clientManagers = new HashMap<>();
+	private ProxyRegistry registry = new ProxyRegistry();
+
+	private int nAppCount = 0;
 
 	public Proxy() {
 		if(instance != null)
@@ -158,7 +148,7 @@ public final class Proxy implements Application {
 
 		this.dispatchEvent(ProxyEvents.PREINIT);
 
-		this.loadErrdocs();
+		this.registry.loadErrdocs(this.config);
 
 		this.updateState(State.INIT);
 		logger.info("Loading SSL context; ", this.config.getTlsAuthData().size(), " server names configured");
@@ -178,20 +168,13 @@ public final class Proxy implements Application {
 		this.dispatchEvent(ProxyEvents.INIT);
 
 		this.updateState(State.STARTING);
-		int nAppCount = 0;
-		for(NetServer server : this.serverInstances){
-			this.initServerInstance(server);
-			nAppCount++;
-		}
-		for(NetClientManager mgr : this.clientManagers.values()){
-			this.initApplication(mgr);
-			nAppCount++;
-		}
-		if(nAppCount == 0)
+		this.registry.forEachServerInstance(this::initServerInstance);
+		this.registry.forEachClientManager(this::initApplication);
+		if(this.nAppCount == 0)
 			throw new IllegalStateException("No network applications were started");
 
 		this.updateState(State.RUNNING);
-		logger.info("Initialization complete (", nAppCount, " network applications started)");
+		logger.info("Initialization complete (", this.nAppCount, " network applications started)");
 	}
 
 
@@ -207,12 +190,8 @@ public final class Proxy implements Application {
 		if(this.proxyEventBus != null)
 			this.dispatchEvent(ProxyEvents.SHUTDOWN);
 
-		for(NetServer server : this.serverInstances){
-			server.close();
-		}
-		for(NetClientManager mgr : this.clientManagers.values()){
-			mgr.close();
-		}
+		this.registry.forEachServerInstance(NetServer::close);
+		this.registry.forEachClientManager(NetClientManager::close);
 		if(this.serverWorker != null)
 			this.serverWorker.exit();
 
@@ -333,39 +312,6 @@ public final class Proxy implements Application {
 		}
 	}
 
-	private void loadErrdocs() throws IOException {
-		if(!this.config.getErrdocFiles().isEmpty()){
-			for(String t : this.config.getErrdocFiles().keySet()){
-				String file = this.config.getErrdocFiles().get(t);
-				logger.debug("Loading errdoc '", file, "' (", t, ")");
-				HTTPErrdoc errdoc = HTTPErrdoc.fromString(new String(Files.readAllBytes(Paths.get(file))), t);
-				errdoc.setServername(this.getInstanceName());
-				this.errdocs.put(t, errdoc);
-				if(this.errdocDefault == null)
-					this.errdocDefault = errdoc;
-			}
-			if(!this.errdocs.containsKey("text/html")){
-				logger.debug("No errdoc of type 'text/html', loading default: ", Proxy.DEFAULT_ERRDOC_LOCATION);
-				this.loadDefaultErrdoc();
-			}
-		}else{
-			logger.debug("No errdocs configured, loading default: ", Proxy.DEFAULT_ERRDOC_LOCATION);
-			this.loadDefaultErrdoc();
-		}
-	}
-
-	private void loadDefaultErrdoc() throws IOException {
-		java.io.InputStream defErrdocStream = Proxy.class.getResourceAsStream(Proxy.DEFAULT_ERRDOC_LOCATION);
-		if(defErrdocStream == null)
-			throw new IOException("Default errdoc (" + Proxy.DEFAULT_ERRDOC_LOCATION + ") not found");
-		byte[] defErrdocData = new byte[defErrdocStream.available()];
-		defErrdocStream.read(defErrdocData);
-		HTTPErrdoc defErrdoc = HTTPErrdoc.fromString(new String(defErrdocData));
-		defErrdoc.setServername(this.getInstanceName());
-		this.errdocDefault = defErrdoc;
-		this.errdocs.put(defErrdoc.getMimeType(), defErrdoc);
-	}
-
 
 	/**
 	 * Registers a new {@link NetServer} instance of the given type.
@@ -374,14 +320,11 @@ public final class Proxy implements Application {
 	 * parameters. If the type requires additional arguments in the constructor, use <code>Proxy.registerServerInstance(NetServer)</code> directly instead.
 	 * 
 	 * @param c
+	 * @deprecated Since 3.9.1, use <code>{@link getRegistry()}.{@link ProxyRegistry#registerServerInstance(Class) registerServerInstance(c)}</code> instead
 	 */
+	@Deprecated
 	public void registerServerInstance(Class<? extends NetServer> c) {
-		try{
-			NetServer server = c.newInstance();
-			this.registerServerInstance(server);
-		}catch(ReflectiveOperationException e){
-			throw new RuntimeException("Failed to register server instance of type '" + c.getName() + "'", e);
-		}
+		this.registry.registerServerInstance(c);
 	}
 
 	/**
@@ -389,15 +332,11 @@ public final class Proxy implements Application {
 	 * phase, meaning server instances must be registered during the {@link ProxyEvents#PREINIT} event.
 	 * 
 	 * @param server
+	 * @deprecated Since 3.9.1, use <code>{@link getRegistry()}.{@link ProxyRegistry#registerServerInstance(NetServer) registerServerInstance(server)}</code> instead
 	 */
+	@Deprecated
 	public void registerServerInstance(NetServer server) {
-		this.serverInstances.add(server);
-		logger.info("Added server instance ", server.getClass().getName());
-	}
-
-	private void initServerInstance(NetServer server) {
-		server.setConnectionCallback(this::onNewConnection);
-		this.initApplication(server);
+		this.registry.registerServerInstance(server);
 	}
 
 	/**
@@ -408,9 +347,11 @@ public final class Proxy implements Application {
 	 * and the connection will be closed.
 	 * 
 	 * @param selector
+	 * @deprecated Since 3.9.1, use <code>{@link getRegistry()}.{@link ProxyRegistry#addHTTPEngineSelector(Function, Class) addHTTPEngineSelector(selector)}</code> instead
 	 */
+	@Deprecated
 	public void addHTTPEngineSelector(Function<SocketConnection, Class<? extends HTTPEngine>> selector) {
-		this.httpEngineSelectors.add(selector);
+		this.registry.addHTTPEngineSelector(selector);
 	}
 
 	/**
@@ -430,9 +371,17 @@ public final class Proxy implements Application {
 	 * @param id The identifier for the client manager
 	 * @param mgr The client manager
 	 * @since 3.7.1
+	 * @deprecated Since 3.9.1, use <code>{@link getRegistry()}.{@link ProxyRegistry#registerClientManager(String, NetClientManager) registerClientManager(id, mgr)}</code> instead
 	 */
+	@Deprecated
 	public void registerClientManager(String id, NetClientManager mgr) {
-		this.clientManagers.put(id, mgr);
+		this.registry.registerClientManager(id, mgr);
+	}
+
+
+	private void initServerInstance(NetServer server) {
+		server.setConnectionCallback(this::onNewConnection);
+		this.initApplication(server);
 	}
 
 	private void initApplication(NetworkApplication app) {
@@ -440,21 +389,12 @@ public final class Proxy implements Application {
 			app.init();
 			ApplicationThread thread = new ApplicationThread(app);
 			thread.start();
+			this.nAppCount++;
 		}catch(IOException e){
 			throw new RuntimeException("Failed to initialize application of type '" + app.getClass().getName() + "'", e);
 		}
 	}
 
-
-	private Class<? extends HTTPEngine> selectHTTPEngine(SocketConnection conn) {
-		Class<? extends HTTPEngine> c = null;
-		for(Function<SocketConnection, Class<? extends HTTPEngine>> sel : this.httpEngineSelectors){
-			c = sel.apply(conn);
-			if(c != null)
-				break;
-		}
-		return c;
-	}
 
 	private HTTPEngine createHTTPEngineInstance(Class<? extends HTTPEngine> engineType, SocketConnection downstreamConnection) {
 		HTTPEngine engine = null;
@@ -477,7 +417,7 @@ public final class Proxy implements Application {
 
 		final AtomicReference<HTTPEngine> engineRef = new AtomicReference<>();
 
-		conn.setOnClose(() -> {
+		conn.on("close", () -> {
 			if(logger.debug())
 				logger.debug(msgToProxy, " Disconnected");
 			HTTPEngine engine = engineRef.get();
@@ -490,7 +430,7 @@ public final class Proxy implements Application {
 		if(!conn.isConnected()) // connection might have been closed by an event handler
 			return;
 
-		Class<? extends HTTPEngine> engineType = this.selectHTTPEngine(conn);
+		Class<? extends HTTPEngine> engineType = this.registry.selectHTTPEngine(conn);
 		if(engineType == null){
 			logger.warn("Could not find HTTPEngine for socket of type " + conn.getClass().getName());
 			conn.destroy();
@@ -502,7 +442,7 @@ public final class Proxy implements Application {
 		if(logger.debug())
 			logger.debug(msgToProxy, " HTTPEngine type: ", engineType.getName());
 
-		conn.setOnData(engine::processData);
+		conn.on("data", (org.omegazero.common.event.runnable.GenericRunnable.A1<byte[]>) engine::processData);
 	}
 
 
@@ -552,7 +492,7 @@ public final class Proxy implements Application {
 	 */
 	public SocketConnection connection(String cmid, ConnectionParameters parameters, SocketConnection downstreamConnection) throws IOException {
 		this.requireState(State.RUNNING);
-		NetClientManager mgr = this.clientManagers.get(cmid);
+		NetClientManager mgr = this.registry.getClientManager(cmid);
 		if(mgr == null)
 			throw new IllegalArgumentException("Invalid client manager id '" + cmid + "'");
 		SocketConnection conn = mgr.connection(parameters);
@@ -572,7 +512,7 @@ public final class Proxy implements Application {
 	 */
 	public int dispatchEvent(Event event, Object... args) {
 		if(logger.debug())
-			logger.trace("Proxy EventBus event <fast>: '", event.getMethodName(), "' ", event.getEventSignature());
+			logger.trace("Proxy EventBus event <fast>: ", event.getEventSignature());
 		return ProxyEvents.runEvent(this.proxyEventBus, event, args);
 	}
 
@@ -586,7 +526,7 @@ public final class Proxy implements Application {
 	 */
 	public EventResult dispatchEventRes(Event event, Object... args) {
 		if(logger.debug())
-			logger.trace("Proxy EventBus event <res>: '", event.getMethodName(), "' ", event.getEventSignature());
+			logger.trace("Proxy EventBus event <res>: ", event.getEventSignature());
 		return ProxyEvents.runEventRes(this.proxyEventBus, event, args);
 	}
 
@@ -720,67 +660,47 @@ public final class Proxy implements Application {
 	}
 
 	/**
-	 * Returns the error document set for the given <b>type</b> using {@link Proxy#setErrdoc(String, HTTPErrdoc)}. If no error document for the given type was set, the default
-	 * error document is returned ({@link Proxy#getDefaultErrdoc()}).
+	 * Calls <code>{@link getRegistry()}.{@link ProxyRegistry#getErrdoc(String) getErrdoc(type)}</code>.
 	 * 
 	 * @param type The MIME type of the error document
-	 * @return A {@link HTTPErrdoc} instance of the given MIME type or the default error document if none was found
+	 * @return A {@code HTTPErrdoc} instance of the given MIME type or the default error document if none was found
 	 */
 	public HTTPErrdoc getErrdoc(String type) {
-		HTTPErrdoc errdoc = this.errdocs.get(type);
-		if(errdoc == null){
-			errdoc = this.errdocDefault;
-		}
-		return errdoc;
+		return this.getRegistry().getErrdoc(type);
 	}
 
 	/**
+	 * Calls <code>{@link getRegistry()}.{@link ProxyRegistry#getDefaultErrdoc() getDefaultErrdoc()}</code>.
 	 * 
-	 * @return The default {@link HTTPErrdoc}. This is guaranteed to be non-<code>null</code>
+	 * @return The default error document
 	 */
 	public HTTPErrdoc getDefaultErrdoc() {
-		return this.errdocDefault;
+		return this.getRegistry().getDefaultErrdoc();
 	}
 
 	/**
-	 * Parses the given value of an <code>Accept</code> HTTP header and returns the {@link HTTPErrdoc} for the first content type in the header for which an errdoc is found. If no
-	 * overlap is found, or the header does not exist (the given value is <code>null</code>), the default errdoc is returned.
-	 * 
-	 * @param accept The value of an <code>Accept</code> HTTP header
+	 * Calls <code>{@link getRegistry()}.{@link ProxyRegistry#getErrdocForAccept(String) getErrdocForAccept(accept)}</code>.
+	 *
+	 * @param accept The value of an <i>Accept</i> HTTP header
 	 * @return A suitable <code>HTTPErrdoc</code>, or the default errdoc if none was found
 	 * @since 3.3.1
 	 * @see #getErrdoc(String)
 	 * @see #getDefaultErrdoc()
 	 */
-	public HTTPErrdoc getErrdocForAccept(String accept) {
-		HTTPErrdoc errdoc = null;
-		if(accept != null){
-			String[] acceptParts = accept.split(",");
-			for(String ap : acceptParts){
-				int pe = ap.indexOf(';');
-				if(pe >= 0)
-					ap = ap.substring(0, pe);
-				errdoc = this.errdocs.get(ap.trim());
-				if(errdoc != null)
-					break;
-			}
-		}
-		if(errdoc == null)
-			errdoc = this.getDefaultErrdoc();
-		return errdoc;
+	public HTTPErrdoc getErrdocForAccept(String accept){
+		return this.getRegistry().getErrdocForAccept(accept);
 	}
 
 	/**
-	 * Sets an error document for the given MIME type (<b>Content-Type</b> header in HTTP).
-	 * <p>
-	 * The error document is returned by {@link Proxy#getErrdoc(String)} when given the MIME type. The {@link HTTPEngine} implementation may choose any way to determine the
-	 * appropriate error document type for a request, but usually does so using the <b>Accept</b> HTTP request header.
+	 * Sets an error document for the given MIME type.
 	 * 
 	 * @param type The content type to set this error document for
 	 * @param errdoc The <code>HTTPErrdoc</code> instance
+	 * @deprecated Since 3.9.1, use <code>{@link getRegistry()}.{@link ProxyRegistry#setErrdoc(String, HTTPErrdoc) setErrdoc(type, errdoc)}</code> instead
 	 */
-	public void setErrdoc(String type, HTTPErrdoc errdoc) {
-		this.errdocs.put(Objects.requireNonNull(type), Objects.requireNonNull(errdoc));
+	@Deprecated
+	public void setErrdoc(String type, HTTPErrdoc errdoc){
+		this.getRegistry().setErrdoc(type, errdoc);
 	}
 
 	/**
@@ -819,6 +739,16 @@ public final class Proxy implements Application {
 		return serv;
 	}
 
+	/**
+	 * Returns the {@link ProxyRegistry} for this proxy.
+	 *
+	 * @return The registry
+	 * @since 3.9.1
+	 */
+	public ProxyRegistry getRegistry(){
+		return this.registry;
+	}
+
 
 	/**
 	 * Returns the currently active instance of <code>Proxy</code>, or <code>null</code> if there is none.
@@ -846,17 +776,17 @@ public final class Proxy implements Application {
 		this.state = newState;
 	}
 
-	private void requireState(State state) {
+	void requireState(State state) {
 		if(this.state.value() != state.value())
 			throw new IllegalStateException("Requires state " + state + " but proxy is in state " + this.state);
 	}
 
-	private void requireStateMin(State state) {
+	void requireStateMin(State state) {
 		if(this.state.value() < state.value())
 			throw new IllegalStateException("Requires state " + state + " or after but proxy is in state " + this.state);
 	}
 
-	private void requireStateMax(State state) {
+	void requireStateMax(State state) {
 		if(this.state.value() > state.value())
 			throw new IllegalStateException("Requires state " + state + " or before but proxy is already in state " + this.state);
 	}
