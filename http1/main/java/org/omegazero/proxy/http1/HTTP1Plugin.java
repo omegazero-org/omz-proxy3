@@ -35,7 +35,7 @@ public class HTTP1Plugin {
 	public void onInit() {
 		if(!this.enable)
 			return;
-		Proxy.getInstance().addHTTPEngineSelector((connection) -> {
+		Proxy.getInstance().getRegistry().addHTTPEngineSelector((connection) -> {
 			if(connection instanceof TLSConnection){
 				String alpnProtocolName = ((TLSConnection) connection).getApplicationProtocol();
 				if(alpnProtocolName == null || alpnProtocolName.equals(HTTP1.HTTP1_ALPN_NAME))

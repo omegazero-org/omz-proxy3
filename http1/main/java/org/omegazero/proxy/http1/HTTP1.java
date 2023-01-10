@@ -468,11 +468,11 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 		}
 
 		uconn.setAttachment(CONNDBG, this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
-		uconn.setOnConnect(() -> {
+		uconn.on("connect", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Connected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION, uconn);
 		});
-		uconn.setOnTimeout(() -> {
+		uconn.on("timeout", () -> {
 			logUNetError(uconn.getAttachment(CONNDBG), " Connect timeout");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			synchronized(this){
@@ -480,7 +480,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 					this.respondUNetError(this.currentRequest, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
 			}
 		});
-		uconn.setOnError((e) -> {
+		uconn.on("error", (Throwable e) -> {
 			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
@@ -508,7 +508,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", e);
 			}
 		});
-		uconn.setOnClose(() -> {
+		uconn.on("close", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Disconnected");
 			if(this.downstreamConnection.isConnected())
 				this.downstreamConnection.setReadBlock(false); // release backpressure
@@ -539,7 +539,7 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 
 			this.upstreamConnections.remove(userver, uconn);
 		});
-		uconn.setOnData((d) -> {
+		uconn.on("data", (byte[] d) -> {
 			synchronized(this){
 				do{
 					d = this.processResponsePacket(d, userver, uconn);
