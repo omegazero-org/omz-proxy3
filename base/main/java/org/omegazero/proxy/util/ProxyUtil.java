@@ -119,8 +119,7 @@ public class ProxyUtil {
 			if((!writeStream.hasConnected() || writeStream.isConnected()) /* not disconnected */ && !writeStream.isWritable()){
 				if(readStream.isConnected())
 					readStream.setReadBlock(true);
-				writeStream.setOnWritable(() -> {
-					writeStream.setOnWritable(null);
+				writeStream.once("writable", (org.omegazero.common.event.runnable.GenericRunnable.A0) () -> {
 					if(readStream.isConnected())
 						readStream.setReadBlock(false);
 				});
