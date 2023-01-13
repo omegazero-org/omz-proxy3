@@ -92,7 +92,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		// limit encoder table size
 		super.hpack.setEncoderDynamicTableMaxSizeCurrent(super.settings.get(SETTINGS_HEADER_TABLE_SIZE));
 
-		this.downstreamConnection.setOnWritable(super::handleConnectionWindowUpdate);
+		this.downstreamConnection.on("writable", super::handleConnectionWindowUpdate);
 	}
 
 	private static HTTP2Settings initSettings(HTTPEngineConfig config) {
@@ -137,12 +137,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 							this.upstreamClientSettings.set(SETTINGS_ENABLE_PUSH, 0);
 					});
 					cs.setOnWindowUpdate(super::handleConnectionWindowUpdate);
-					try{
-						cs.writeSettings(super.settings);
-					}catch(IOException e){
-						// the SocketConnection does not throw IOException on any methods
-						throw new AssertionError(e);
-					}
+					cs.writeSettings(super.settings);
 				}else{
 					logger.debug(this.downstreamConnectionDbgstr, " Invalid client preface");
 					this.downstreamConnection.destroy();
@@ -156,11 +151,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 	public void close() {
 		this.downstreamClosed = true;
 		for(HTTP2Client c : this.upstreamClients.values()){
-			try{
-				c.close();
-			}catch(IOException e){
-				throw new AssertionError(e);
-			}
+			c.close();
 		}
 	}
 
@@ -197,16 +188,12 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
 					Tasks.I.clear(request.getAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
 				if(request.hasAttachment(ATTACHMENT_KEY_REQUEST_FINISHED)){
-					try{
-						synchronized(super.hpack){
-							if(data.length > 0){
-								stream.sendHTTPMessage(response, false);
-								stream.sendData(data, true);
-							}else
-								stream.sendHTTPMessage(response, true);
-						}
-					}catch(IOException e){
-						throw new AssertionError(e);
+					synchronized(super.hpack){
+						if(data.length > 0){
+							stream.sendHTTPMessage(response, false);
+							stream.sendData(data, true);
+						}else
+							stream.sendHTTPMessage(response, true);
 					}
 				}else
 					request.setAttachment(ATTACHMENT_KEY_PENDING_RESPONSE, new HTTPResponseData(response, data.length > 0 ? data : null));
@@ -244,7 +231,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 
 	@Override
-	protected HTTP2Stream newStreamForFrame(int streamId, int type, int flags, byte[] payload) throws IOException {
+	protected HTTP2Stream newStreamForFrame(int streamId, int type, int flags, byte[] payload) throws HTTP2ConnectionError {
 		if(type == FRAME_TYPE_HEADERS){
 			if((streamId & 1) == 0 || streamId <= super.highestStreamId)
 				throw new HTTP2ConnectionError(STATUS_PROTOCOL_ERROR);
@@ -289,7 +276,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		return requestId;
 	}
 
-	private synchronized void processHTTPRequest(MessageStream clientStream, HTTPRequest request, boolean endStream, Consumer<Integer> baseCloseHandler) throws IOException {
+	private synchronized void processHTTPRequest(MessageStream clientStream, HTTPRequest request, boolean endStream, Consumer<Integer> baseCloseHandler) throws HTTP2ConnectionError {
 		String requestId = this.initRequest(request);
 		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
 		if(!this.config.isDisableDefaultRequestLog())
@@ -303,11 +290,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		clientStream.setOnClosed((status) -> {
 			baseCloseHandler.accept(status);
 			if(usStream != null && !usStream.isClosed() && status != STATUS_NO_ERROR){
-				try{
-					usStream.rst(STATUS_CANCEL);
-				}catch(IOException e){
-					throw new AssertionError(e);
-				}
+				usStream.rst(STATUS_CANCEL);
 			}
 		});
 
@@ -372,14 +355,15 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		}
 	}
 
-	private MessageStream doHTTPRequestUpstream(MessageStream clientStream, HTTPRequest request) throws IOException {
+	private MessageStream doHTTPRequestUpstream(MessageStream clientStream, HTTPRequest request) throws HTTP2ConnectionError {
 		assert Thread.holdsLock(this);
 		EventResult userverRes = this.proxy.dispatchEventRes(ProxyEvents.HTTP_REQUEST_SELECT_SERVER, this.downstreamConnection, request);
 		if(request.hasResponse())
 			return null;
-		UpstreamServer userver = (UpstreamServer) userverRes.getReturnValue();
-		if(userver == null)
-			userver = this.proxy.getDefaultUpstreamServer();
+		UpstreamServer userver0 = (UpstreamServer) userverRes.getReturnValue();
+		if(userver0 == null)
+			userver0 = this.proxy.getDefaultUpstreamServer();
+		final UpstreamServer userver = userver0;
 		if(userver == null){
 			logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 			this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);
@@ -456,11 +440,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				logger.trace("Push promise request stream ", ppDSStream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
 				super.streamClosed(ppDSStream);
 				if(status != HTTP2Constants.STATUS_NO_ERROR){
-					try{
-						ppUSStream.rst(HTTP2Constants.STATUS_CANCEL);
-					}catch(IOException e){
-						throw new AssertionError(e);
-					}
+					ppUSStream.rst(HTTP2Constants.STATUS_CANCEL);
 				}
 			});
 
@@ -476,7 +456,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		return usStream;
 	}
 
-	private void endRequest(HTTPRequest request, MessageStream dsStream, MessageStream usStream) throws IOException {
+	private void endRequest(HTTPRequest request, MessageStream dsStream, MessageStream usStream) {
 		synchronized(dsStream){
 			synchronized(request){
 				request.setAttachment(ATTACHMENT_KEY_REQUEST_FINISHED, true);
@@ -591,11 +571,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			HTTPResponse response = request.getOther();
 			if(response == null){
 				if(status == HTTP2Constants.STATUS_ENHANCE_YOUR_CALM || status == HTTP2Constants.STATUS_HTTP_1_1_REQUIRED){ // passthrough error to client
-					try{
-						dsStream.rst(status);
-					}catch(IOException e){
-						throw new AssertionError(e);
-					}
+					dsStream.rst(status);
 				}else if(dsStream.isExpectingResponse()){
 					logUNetError(uconn.getAttachment(CONNDBG), " Stream ", usStream.getStreamId(), " closed unexpectedly with status ",
 							HTTP2ConnectionError.getStatusCodeName(status));
@@ -611,7 +587,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 	}
 
 
-	private HTTP2Client createClient(HTTPRequest request, UpstreamServer userver) throws IOException {
+	private HTTP2Client createClient(HTTPRequest request, UpstreamServer userver) throws HTTP2ConnectionError {
 		assert Thread.holdsLock(this);
 		if(!userver.isProtocolSupported("http/2"))
 			throw new HTTP2ConnectionError(HTTP2Constants.STATUS_HTTP_1_1_REQUIRED, true, "HTTP/2 is not supported by the upstream server");
@@ -628,18 +604,18 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 		HTTP2Client client = new ProxyHTTP2Client(uconn, this.upstreamClientSettings, super.hpack.getSession(), super.hpack.isUseHuffmanEncoding());
 
 		uconn.setAttachment(CONNDBG, this.proxy.debugStringForConnection(this.downstreamConnection, uconn));
-		uconn.setOnConnect(() -> {
+		uconn.on("connect", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Connected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION, uconn);
 		});
-		uconn.setOnTimeout(() -> {
+		uconn.on("timeout", () -> {
 			logUNetError(uconn.getAttachment(CONNDBG), " Connect timed out");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			if(this.downstreamClosed)
 				return;
 			this.respondUNetError(this.proxy, request, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
 		});
-		uconn.setOnError((e) -> {
+		uconn.on("error", (Throwable e) -> {
 			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
@@ -667,7 +643,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 				logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", e);
 			}
 		});
-		uconn.setOnClose(() -> {
+		uconn.on("close", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Disconnected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
 			synchronized(this){
@@ -676,7 +652,7 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 			}
 			this.upstreamClients.remove(userver, client);
 		});
-		uconn.setOnData(client::processData);
+		uconn.on("data", (org.omegazero.common.event.runnable.GenericRunnable.A1<byte[]>) client::processData);
 
 		client.start();
 		uconn.connect(this.config.getUpstreamConnectionTimeout());

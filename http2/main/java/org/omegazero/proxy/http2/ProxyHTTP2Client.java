@@ -6,8 +6,6 @@
  */
 package org.omegazero.proxy.http2;
 
-import java.io.IOException;
-
 import org.omegazero.http.h2.HTTP2Client;
 import org.omegazero.http.h2.hpack.HPackContext.Session;
 import org.omegazero.http.h2.util.HTTP2Constants;
@@ -21,12 +19,12 @@ public class ProxyHTTP2Client extends HTTP2Client {
 	public ProxyHTTP2Client(SocketConnection connection, HTTP2Settings settings, Session hpackSession, boolean useHuffmanEncoding) {
 		super(new SocketConnectionWritable(connection), settings, hpackSession, useHuffmanEncoding);
 
-		connection.setOnWritable(super::handleConnectionWindowUpdate);
+		connection.on("writable", super::handleConnectionWindowUpdate);
 	}
 
 
 	@Override
-	public void start() throws IOException {
+	public void start() {
 		super.start();
 		// set a max table size value to be able to send requests before receiving a SETTINGS frame from the server
 		super.hpack.setEncoderDynamicTableMaxSizeSettings(0);
