@@ -17,6 +17,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import org.omegazero.common.event.Tasks;
+import org.omegazero.common.eventbus.EventResult;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.http.common.HTTPMessage;
@@ -258,7 +259,12 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 				logger.info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
 
 			upstream: {
-				UpstreamServer userver = this.proxy.getUpstreamServer(request.getAuthority(), request.getPath());
+				EventResult userverRes = this.proxy.dispatchEventRes(ProxyEvents.HTTP_REQUEST_SELECT_SERVER, this.downstreamConnection, request);
+				if(request.hasResponse())
+					break upstream;
+				UpstreamServer userver = (UpstreamServer) userverRes.getReturnValue();
+				if(userver == null)
+					userver = this.proxy.getDefaultUpstreamServer();
 				if(userver == null){
 					logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 					this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);

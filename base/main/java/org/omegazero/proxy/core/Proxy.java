@@ -618,7 +618,8 @@ public final class Proxy implements Application {
 	}
 
 	/**
-	 * 
+	 * Checks whether a plugins with the given <b>id</b> is loaded.
+	 *
 	 * @param id The id of the plugin to search for
 	 * @return <code>true</code> if a plugin with the given id exists
 	 */
@@ -631,7 +632,8 @@ public final class Proxy implements Application {
 	}
 
 	/**
-	 * 
+	 * Returns the {@link SSLContext} for this proxy
+	 *
 	 * @return The configured SSL context for this proxy
 	 */
 	public SSLContext getSslContext() {
@@ -724,19 +726,18 @@ public final class Proxy implements Application {
 	/**
 	 * Selects an upstream server based on the given hostname and path.
 	 * <p>
-	 * This method uses the EventBus event {@link ProxyEvents#SELECT_UPSTREAM_SERVER}. If all event handlers return <code>null</code>, the default upstream server, which may also
+	 * This method uses the EventBus event {@code selectUpstreamServer}. If all event handlers return <code>null</code>, the default upstream server, which may also
 	 * be <code>null</code>, is selected.
 	 * 
 	 * @param host The hostname to choose a server for
 	 * @param path The request path
 	 * @return The {@link UpstreamServer} instance for the given <b>host</b>, or <code>null</code> if no appropriate server was found
+	 * @deprecated Since 3.9.1, this method always returns the value returned by {@link #getDefaultUpstreamServer()}. The {@code selectUpstreamServer} event was replaced by
+	 *		 {@code onHTTPRequestSelectServer}
 	 */
+	@Deprecated
 	public UpstreamServer getUpstreamServer(String host, String path) {
-		EventResult res = this.dispatchEventRes(ProxyEvents.SELECT_UPSTREAM_SERVER, host, path);
-		UpstreamServer serv = (UpstreamServer) res.getReturnValue();
-		if(serv == null)
-			serv = this.getDefaultUpstreamServer();
-		return serv;
+		return this.getDefaultUpstreamServer();
 	}
 
 	/**

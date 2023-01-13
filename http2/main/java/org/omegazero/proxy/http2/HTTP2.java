@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import org.omegazero.common.event.Tasks;
+import org.omegazero.common.eventbus.EventResult;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.http.common.HTTPRequest;
@@ -373,7 +374,12 @@ public class HTTP2 extends HTTP2Endpoint implements HTTPEngine, HTTPEngineRespon
 
 	private MessageStream doHTTPRequestUpstream(MessageStream clientStream, HTTPRequest request) throws IOException {
 		assert Thread.holdsLock(this);
-		UpstreamServer userver = this.proxy.getUpstreamServer(request.getAuthority(), request.getPath());
+		EventResult userverRes = this.proxy.dispatchEventRes(ProxyEvents.HTTP_REQUEST_SELECT_SERVER, this.downstreamConnection, request);
+		if(request.hasResponse())
+			return null;
+		UpstreamServer userver = (UpstreamServer) userverRes.getReturnValue();
+		if(userver == null)
+			userver = this.proxy.getDefaultUpstreamServer();
 		if(userver == null){
 			logger.debug(this.downstreamConnectionDbgstr, " No upstream server found");
 			this.proxy.dispatchEvent(ProxyEvents.INVALID_UPSTREAM_SERVER, this.downstreamConnection, request);

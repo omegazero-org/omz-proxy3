@@ -38,6 +38,8 @@ public final class ProxyEvents {
 	public static final Event INVALID_HTTP_RESPONSE = new Event("onInvalidHTTPResponse",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, byte[].class });
 	public static final Event HTTP_REQUEST_PRE_LOG = new Event("onHTTPRequestPreLog", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class });
+	public static final Event HTTP_REQUEST_SELECT_SERVER = new Event("onHTTPRequestSelectServer",
+			new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class }, UpstreamServer.class); // since 3.9.1
 	public static final Event HTTP_REQUEST_PRE = new Event("onHTTPRequestPre", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST = new Event("onHTTPRequest", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class });
 	public static final Event HTTP_REQUEST_DATA = new Event("onHTTPRequestData", new Class<?>[] { SocketConnection.class, HTTPRequestData.class, UpstreamServer.class });
@@ -57,7 +59,6 @@ public final class ProxyEvents {
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class, int.class, String.class }); // since 3.7.3
 	public static final Event HTTP_RESPONSE_TIMEOUT = new Event("onHTTPResponseTimeout",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, UpstreamServer.class }); // since 3.6.1
-	public static final Event SELECT_UPSTREAM_SERVER = new Event("selectUpstreamServer", new Class<?>[] { String.class, String.class }, UpstreamServer.class);
 	public static final Event UPSTREAM_CONNECTION = new Event("onUpstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_CLOSED = new Event("onUpstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_ERROR = new Event("onUpstreamConnectionError", new Class<?>[] { SocketConnection.class, Throwable.class });
