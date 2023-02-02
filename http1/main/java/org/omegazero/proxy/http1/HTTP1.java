@@ -487,6 +487,8 @@ public class HTTP1 implements HTTPEngine, HTTPEngineResponderMixin {
 			}
 		});
 		uconn.on("error", (Throwable e) -> {
+			if(e instanceof org.omegazero.common.event.task.ExecutionFailedException)
+				e = e.getCause();
 			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
