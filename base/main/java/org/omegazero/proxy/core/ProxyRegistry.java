@@ -20,6 +20,7 @@ import java.util.function.Function;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.util.function.SpecificThrowingConsumer;
 import org.omegazero.http.util.HTTPClient;
+import org.omegazero.http.util.HTTPServer;
 import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.server.NetServer;
 import org.omegazero.net.socket.SocketConnection;
@@ -271,9 +272,22 @@ public final class ProxyRegistry {
 	}
 
 
+	/**
+	 * Represents a constructor for a {@link HTTPClient}.
+	 *
+	 * @since 3.10.1
+	 */
 	@FunctionalInterface
 	public static interface HTTPClientConstructor {
 
-		public HTTPClient construct(SocketConnection upstreamConnection, UpstreamServer server, HTTPEngineConfig config);
+		/**
+		 * Creates a new {@code HTTPClient} instance.
+		 *
+		 * @param upstreamConnection The connection to the server used by the upstream client
+		 * @param userver The {@code UpstreamServer}
+		 * @param config The {@code HTTPEngineConfig} to use
+		 * @param dserver The downstream {@code HTTPServer} instance
+		 */
+		public HTTPClient construct(SocketConnection upstreamConnection, UpstreamServer userver, HTTPEngineConfig config, HTTPServer dserver);
 	}
 }
