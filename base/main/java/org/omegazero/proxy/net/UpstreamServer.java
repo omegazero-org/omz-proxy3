@@ -28,9 +28,9 @@ public class UpstreamServer implements java.io.Serializable {
 	private static final Logger logger = Logger.create();
 
 	/**
-	 * An immutable collection containing the single default supported procotol, {@code http/1.1}, used if no protocols are passed in the constructor.
+	 * An immutable collection containing the single default supported procotol, {@code HTTP/1.1}, used if no protocols are passed in the constructor.
 	 */
-	public static final Collection<String> PROTOCOLS_DEFAULT = Collections.singleton("http/1.1");
+	public static final Collection<String> PROTOCOLS_DEFAULT = Collections.singleton("HTTP/1.1");
 	/**
 	 * An immutable collection representing support for all protocols.
 	 */
