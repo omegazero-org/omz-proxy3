@@ -143,16 +143,12 @@ public final class HTTPCommon {
 			return MSG_UPSTREAM_CONNECT_FAILED + ": TLS handshake error";
 		else if(e instanceof java.net.ConnectException)
 			return MSG_UPSTREAM_CONNECT_FAILED + ": " + e.getMessage();
-		else if(e instanceof javax.net.ssl.SSLException)
-			return MSG_UPSTREAM_CONNECTION_ERROR + ": TLS error";
-		else if(e instanceof java.net.SocketException)
-			return MSG_UPSTREAM_CONNECTION_ERROR + ": " + e.getMessage();
 		else if(e instanceof InvalidHTTPMessageException)
 			return MSG_UPSTREAM_RESPONSE_INVALID + ": " + e.getMessage();
 		else if(e instanceof java.io.IOException)
-			return MSG_UPSTREAM_CONNECTION_ERROR + ": IO error";
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": " + e;
 		else
-			return MSG_UPSTREAM_CONNECTION_ERROR + ": Unexpected error";
+			return MSG_UPSTREAM_CONNECTION_ERROR + ": Unexpected internal error";
 	}
 
 
