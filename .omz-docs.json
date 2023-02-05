@@ -3,9 +3,7 @@
 	"targetName": "omz-proxy3",
 	"generatorOptions": {
 		"src": [
-			"base/main/java",
-			"http1/main/java",
-			"http2/main/java"
+			"base/main/java"
 		],
 		"packages": ["org"],
 		"windowtitle": "omegazero HTTP proxy version 3",
@@ -19,9 +17,7 @@
 				"org.omegazero.proxy.http",
 				"org.omegazero.proxy.net",
 				"org.omegazero.proxy.util"
-			],
-			"HTTP/1": "org.omegazero.proxy.http1",
-			"HTTP/2": "org.omegazero.proxy.http2"
+			]
 		},
 		"links": [
 			"https://docs.oracle.com/javase/8/docs/api/",
