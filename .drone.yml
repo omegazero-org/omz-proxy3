@@ -26,58 +26,53 @@ steps:
   - curl -G "https://omegazero.org/site/software/r/license_bin_full.php" --data-urlencode "srcurl=$DRONE_REPO_LINK/src/commit/$DRONE_COMMIT" > LICENSE_BIN
 
 - name: build-base
-  image: openjdk:8
+  image: o-jvm-build
+  pull: never
   commands:
-  - mkdir -p build/base/bin/META-INF
-  - cp LICENSE_BIN build/base/bin/META-INF/LICENSE
-  - find base/main/java -iname "*.java" > build/base/srcfiles
-  - javac -version -Werror -verbose -Xlint:all,-processing -d build/base/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar @build/base/srcfiles
-  - cp -r base/main/resources/* build/base/bin/
-  - jar cf build-base.jar -C build/base/bin .
+  - mkdir -p build/base/META-INF
+  - cp LICENSE_BIN build/base/META-INF/LICENSE
+  - make base BINDIR=build
   depends_on:
   - prepare-dependencies
   - prepare-source
 
 - name: build-http1
-  image: openjdk:8
+  image: o-jvm-build
+  pull: never
   commands:
-  - mkdir -p build/http1/bin/META-INF
-  - cp LICENSE_BIN build/http1/bin/META-INF/LICENSE
-  - find http1/main/java -iname "*.java" > build/http1/srcfiles
-  - javac -version -Werror -verbose -Xlint:all,-processing -d build/http1/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar @build/http1/srcfiles
-  - cp -r http1/main/resources/* build/http1/bin/
-  - jar cf build-http1.jar -C build/http1/bin .
+  - mkdir -p build/http1/META-INF
+  - cp LICENSE_BIN build/http1/META-INF/LICENSE
+  - make http1 BINDIR=build
   depends_on:
   - build-base
 
 - name: build-http2
-  # use ECJ because of JDK-8139836
-  image: openjdk-ecj:4.14
+  image: o-jvm-build
+  pull: never
   commands:
-  - mkdir -p build/http2/bin/META-INF
-  - cp LICENSE_BIN build/http2/bin/META-INF/LICENSE
-  - ecj -verbose -d build/http2/bin -cp json-20211205.jar:omz-common-release.jar:omz-netlib-nio-release.jar:omz-http-latest.jar:build-base.jar -8 http2/main/java
-  - cp -r http2/main/resources/* build/http2/bin/
-  - jar cf build-http2.jar -C build/http2/bin .
+  - mkdir -p build/http2/META-INF
+  - cp LICENSE_BIN build/http2/META-INF/LICENSE
+  - make http2 BINDIR=build
   depends_on:
   - build-base
 
 - name: merge-jars
-  image: openjdk:8
+  image: o-jvm-build
+  pull: never
   commands:
   - mkdir build/base/licenses
-  - mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_proxy
-  - (cd build/base/bin; unzip -uo ../../../json-20211205.jar)
+  - mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_proxy
+  - (cd build/base; unzip -uo ../../json-20211205.jar)
   - curl -G "https://raw.githubusercontent.com/stleary/JSON-java/master/LICENSE" > build/base/licenses/LICENSE_org_json
-  - (cd build/base/bin; unzip -uo ../../../omz-common-release.jar)
-  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common"
-  - (cd build/base/bin; unzip -uo ../../../omz-netlib-nio-release.jar)
-  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net"
-  - (cd build/base/bin; unzip -uo ../../../omz-http-latest.jar)
-  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/bin/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http"
-  - rm -r build/base/bin/META-INF/*
-  - mv build/base/licenses/* build/base/bin/META-INF
-  - jar cf build-base-all.jar -C build/base/bin .
+  - (cd build/base; unzip -uo ../../omz-common-release.jar)
+  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common"
+  - (cd build/base; unzip -uo ../../omz-netlib-nio-release.jar)
+  - "[ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net"
+  - (cd build/base; unzip -uo ../../omz-http-latest.jar)
+  - "[ ! -f build/base/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http"
+  - rm -r build/base/META-INF/*
+  - mv build/base/licenses/* build/base/META-INF
+  - jar cf build-base-all.jar -C build/base .
   depends_on:
   - build-base
 
@@ -85,10 +80,10 @@ steps:
   image: omz-ci-tools
   pull: never
   commands:
-  - artifact-push-java build-base.jar omz/org.omegazero.proxy:omz-proxy
+  - artifact-push-java build/omz-proxy3.jar omz/org.omegazero.proxy:omz-proxy
   - artifact-push-java build-base-all.jar omz/org.omegazero.proxy:omz-proxy-all
-  - artifact-push-java build-http1.jar omz/org.omegazero.proxy:http1
-  - artifact-push-java build-http2.jar omz/org.omegazero.proxy:http2
+  - artifact-push-java build/http1.jar omz/org.omegazero.proxy:http1
+  - artifact-push-java build/http2.jar omz/org.omegazero.proxy:http2
   depends_on:
   - build-base
   - build-http1
