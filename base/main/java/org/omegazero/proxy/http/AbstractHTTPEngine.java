@@ -69,6 +69,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 	protected final HTTPServer httpServer;
 
 	protected final String downstreamConnectionDbgstr;
+	protected final boolean disablePromiseRequestLog;
 
 	protected boolean downstreamClosed;
 
@@ -90,6 +91,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		this.httpServer = Objects.requireNonNull(httpServer);
 
 		this.downstreamConnectionDbgstr = this.proxy.debugStringForConnection(this.downstreamConnection, null);
+		this.disablePromiseRequestLog = config.optBoolean("disablePromiseRequestLog", config.isDisableDefaultRequestLog());
 
 		if(logger.debug())
 			logger.debug(this.downstreamConnectionDbgstr, " Using ", this.httpServer.getClass().getName(), " for this connection");
@@ -292,6 +294,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		}
 		if(logger.debug())
 			logger.debug(this.downstreamConnectionDbgstr, " Using ", client.getClass().getName(), " (protocol '", protocol, "') with ", uconn, " to connect to ", userver);
+		client.setServerPushEnabled(this.httpServer.isServerPushEnabled());
 
 		uconn.on("connect", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Connected");
@@ -410,6 +413,25 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 	private void setupResponseStream(HTTPServerStream req, HTTPClientStream ureq, SocketConnection uconn){
 		HTTPRequest request = req.getRequest();
 		UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
+		ureq.onServerPush((resstream) -> {
+			HTTPRequest promiseRequest = resstream.getRequest();
+			String promiseRequestId = this.initRequest(promiseRequest);
+			if(!this.disablePromiseRequestLog)
+				this.getRequestLogger().info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(promiseRequestId), "/<promise> - '",
+						promiseRequest.requestLine(), "'");
+
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, promiseRequest, userver);
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, promiseRequest, userver);
+
+			HTTPServerStream dsstream = req.startServerPush(promiseRequest);
+			this.setupResponseStreamBase(dsstream, resstream, uconn, userver);
+			this.requestEnded(promiseRequest, dsstream, resstream);
+		});
+		this.setupResponseStreamBase(req, ureq, uconn, userver);
+	}
+
+	private void setupResponseStreamBase(HTTPServerStream req, HTTPClientStream ureq, SocketConnection uconn, UpstreamServer userver){
+		HTTPRequest request = req.getRequest();
 		Object conndbg = ((AbstractSocketConnection) uconn).getAttachment(CONNDBG);
 		ureq.onError((err) -> {
 			if(logger.debug())
@@ -515,7 +537,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		}
 	}
 
-	private void requestEnded(HTTPRequest request, HTTPServerStream req, HTTPClientStream ureq) {
+	private void requestEnded(HTTPRequest request, HTTPServerStream req, HTTPClientStream ureq){
 		synchronized(req){
 			try{
 				if(ureq == null && !request.hasResponse())
@@ -549,12 +571,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 	private void receiveNewRequest(HTTPServerStream req){
 		HTTPRequest request = req.getRequest();
-		request.setHttpResponder(this);
-
-		String requestId = HTTPCommon.requestId(this.downstreamConnection);
-		request.setAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID, requestId);
-		if(this.config.isEnableHeaders())
-			HTTPCommon.setDefaultHeaders(this.proxy, request);
+		String requestId = this.initRequest(request);
 
 		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
 		if(!this.config.isDisableDefaultRequestLog())
@@ -565,6 +582,15 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			this.setupResponseStream(req, ureq, ((org.omegazero.http.netutil.SocketConnectionWritable) ureq.getClient().getConnection()).getConnection());
 			ureq.startRequest();
 		}
+	}
+
+	private String initRequest(HTTPRequest request){
+		request.setHttpResponder(this);
+		String requestId = HTTPCommon.requestId(this.downstreamConnection);
+		request.setAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID, requestId);
+		if(this.config.isEnableHeaders())
+			HTTPCommon.setDefaultHeaders(this.proxy, request);
+		return requestId;
 	}
 
 

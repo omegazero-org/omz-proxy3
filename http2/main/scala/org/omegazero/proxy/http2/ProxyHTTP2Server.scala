@@ -47,7 +47,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 	var onError: Option[(HTTPRequest, Int, String) => Unit] = None;
 
 	private var prefaceReceived = false;
-
+	private var nextStreamId = 2;
 	private var requestStreams = new java.util.concurrent.ConcurrentHashMap[Int, IncomingRequestStream]();
 
 	var upstreamClientSettings = new HTTP2Settings(this.settings);
@@ -69,9 +69,9 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 			var cs = super.getControlStream();
 			var mstream = new MessageStream(streamId, this.connection, cs, this.hpack);
 			HTTP2Common.initMessageStream(mstream);
-			logger.trace(this.remoteName, " Created new stream ", mstream.getStreamId(), " for HEADERS frame");
+			logger.debug(this.remoteName, " Created new stream ", mstream.getStreamId(), " for HEADERS frame");
 			var baseCloseHandler: Consumer[Integer] = (status) => {
-				logger.trace(this.remoteName, " Request stream ", mstream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
+				logger.debug(this.remoteName, " Request stream ", mstream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
 				this.requestStreams.remove(mstream.getStreamId());
 				super.streamClosed(mstream);
 			};
@@ -125,6 +125,9 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 	override def close(): Unit = {
 		this.dsConnection.destroy();
 	}
+
+
+	override def isServerPushEnabled(): Boolean = this.getControlStream().getRemoteSettings().get(HTTP2Constants.SETTINGS_ENABLE_PUSH) == 1;
 
 
 	override def onNewRequest(callback: Consumer[HTTPServerStream]): Unit = this.onNewRequest = Some(callback);
@@ -193,6 +196,12 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 			reqstream.callOnRequestEnded(null);
 	}
 
+	private def nextPushStreamId: Int = {
+		var streamId = this.nextStreamId;
+		this.nextStreamId += 2;
+		return streamId;
+	}
+
 
 	class IncomingRequestStream(request: HTTPRequest, val clientStream: MessageStream) extends AbstractHTTPServerStream(request, ProxyHTTP2Server.this) {
 
@@ -218,6 +227,32 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 
 		override def setReceiveData(receiveData: Boolean): Unit = this.clientStream.setReceiveData(receiveData);
 
+		override def startServerPush(promiseRequest: HTTPRequest): HTTPServerStream = {
+			var cs = ProxyHTTP2Server.super.getControlStream();
+			var ppstream = new MessageStream(ProxyHTTP2Server.this.nextPushStreamId, ProxyHTTP2Server.this.connection, cs, ProxyHTTP2Server.this.hpack);
+			HTTP2Common.initMessageStream(ppstream);
+			ppstream.preparePush(false);
+			ProxyHTTP2Server.super.registerStream(ppstream);
+			logger.debug(ProxyHTTP2Server.this.remoteName, " Created new push promise stream ", ppstream.getStreamId(), " for promise request ",
+					promiseRequest.getAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID));
+
+			promiseRequest.setAttachment(MessageStream.ATTACHMENT_KEY_STREAM_ID, ppstream.getStreamId());
+
+			var reqstream = new IncomingRequestStream(promiseRequest, ppstream);
+			reqstream.setReceiveData(true);
+
+			ProxyHTTP2Server.this.requestStreams.put(ppstream.getStreamId(), reqstream);
+			ppstream.setOnClosed((status) => {
+				if(logger.debug())
+					logger.debug(ProxyHTTP2Server.this.remoteName, " Push promise request stream ", ppstream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
+				ProxyHTTP2Server.this.requestStreams.remove(ppstream.getStreamId());
+				ProxyHTTP2Server.super.streamClosed(ppstream);
+			});
+
+			this.clientStream.sendPushPromise(ppstream.getStreamId(), promiseRequest);
+			return reqstream;
+		}
+
 		override def startResponse(response: HTTPResponse): Unit = {
 			this.clientStream.sendHTTPMessage(response, false);
 		}
@@ -232,7 +267,5 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 			else
 				super.endResponse(null);
 		}
-
-		// TODO support server push
 	}
 }

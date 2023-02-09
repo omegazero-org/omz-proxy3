@@ -42,11 +42,9 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 	private val remoteName = this.connection.getRemoteName();
 
 	private var requestStreams = new java.util.concurrent.ConcurrentHashMap[Int, OutgoingRequestStream]();
+	private var enablePush = true;
 
 	this.dsConnection.on("writable", super.handleConnectionWindowUpdate _);
-
-	// TODO support server push
-	this.settings.set(SETTINGS_ENABLE_PUSH, 0);
 
 	super.start();
 	// set a max table size value to be able to send requests before receiving a SETTINGS frame from the server
@@ -70,15 +68,43 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 	}
 
 
+	override def setServerPushEnabled(enabled: Boolean): Unit = {
+		this.enablePush = enabled;
+		this.settings.set(SETTINGS_ENABLE_PUSH, if enabled then 1 else 0);
+		super.getControlStream().writeSettings(this.settings, SETTINGS_ENABLE_PUSH);
+	}
+
+
 	override def newRequest(request: HTTPRequest): HTTPClientStream = {
 		if(this.dsConnection.hasDisconnected())
 			return null;
 		var ustream = super.createRequestStream();
 		if(ustream == null)
 			return null;
-		HTTP2Common.initMessageStream(ustream);
 		if(logger.debug())
 			logger.debug(this.remoteName, " Created new client request stream ", ustream.getStreamId(), " for request ", request.getAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID));
+
+		var reqstream = this.prepareStream(request, ustream);
+
+		ustream.setOnPushPromise((promiseRequest) => {
+			if(!this.enablePush)
+				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_PROTOCOL_ERROR, true);
+			if(!reqstream.hasServerPushHandler)
+				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
+			var ppstream = super.handlePushPromise(promiseRequest);
+			if(logger.debug())
+				logger.debug(this.remoteName, " Created new client push promise stream ", ppstream.getStreamId(), " for a pushed request");
+			var ppreqstream = this.prepareStream(promiseRequest, ppstream);
+			reqstream.callOnServerPush(ppreqstream);
+		});
+		return reqstream;
+	}
+
+	override def getActiveRequests(): Collection[HTTPClientStream] = Collections.unmodifiableCollection(this.requestStreams.values());
+
+
+	private def prepareStream(request: HTTPRequest, ustream: MessageStream): OutgoingRequestStream = {
+		HTTP2Common.initMessageStream(ustream);
 
 		var reqstream = new OutgoingRequestStream(request, ustream);
 		reqstream.setReceiveData(true);
@@ -99,7 +125,7 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 		});
 		ustream.setOnClosed((status) => {
 			if(logger.debug())
-				logger.trace(this.remoteName, " Client request stream ", ustream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
+				logger.debug(this.remoteName, " Client request stream ", ustream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
 			this.requestStreams.remove(ustream.getStreamId());
 			super.streamClosed(ustream);
 			if(reqstream.getResponse() == null)
@@ -110,10 +136,10 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 		return reqstream;
 	}
 
-	override def getActiveRequests(): Collection[HTTPClientStream] = Collections.unmodifiableCollection(this.requestStreams.values());
-
 
 	class OutgoingRequestStream(request: HTTPRequest, val ustream: MessageStream) extends AbstractHTTPClientStream(request, ProxyHTTP2Client.this) {
+
+		private[http2] def hasServerPushHandler: Boolean = this.onServerPush != null;
 
 		override def close(): Unit = {
 			this.ustream.rst(HTTP2Constants.STATUS_CANCEL);
