@@ -19,9 +19,12 @@ import java.util.function.Function;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.util.function.SpecificThrowingConsumer;
+import org.omegazero.http.util.HTTPClient;
+import org.omegazero.http.util.HTTPServer;
 import org.omegazero.net.client.NetClientManager;
 import org.omegazero.net.server.NetServer;
 import org.omegazero.net.socket.SocketConnection;
+import org.omegazero.proxy.config.HTTPEngineConfig;
 import org.omegazero.proxy.config.ProxyConfiguration;
 import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
@@ -42,6 +45,7 @@ public final class ProxyRegistry {
 	private final Map<String, NetClientManager> clientManagers = new HashMap<>();
 
 	private final List<Function<SocketConnection, Class<? extends HTTPEngine>>> httpEngineSelectors = new ArrayList<>();
+	private final Map<String, Object[]> httpClientImplementations = new HashMap<>();
 
 	private final Map<String, HTTPErrdoc> errdocs = new HashMap<>();
 	private HTTPErrdoc errdocDefault;
@@ -102,6 +106,43 @@ public final class ProxyRegistry {
 	 */
 	public void addHTTPEngineSelector(Function<SocketConnection, Class<? extends HTTPEngine>> selector){
 		this.httpEngineSelectors.add(selector);
+	}
+
+	/**
+	 * Registers a new {@link HTTPClient} implementation for outgoing HTTP requests.
+	 * <p>
+	 * The <b>constructor</b> of a {@code HTTPClient} receives the {@link SocketConnection} of the client and the target {@link UpstreamServer} the client should connect to.
+	 *
+	 * @param name The protocol name
+	 * @param constructor The constructor
+	 * @param alpName The application layer protocol name
+	 */
+	public void registerHTTPClientImplementation(String name, HTTPClientConstructor constructor, String alpName){
+		this.httpClientImplementations.put(name, new Object[] { constructor, alpName });
+	}
+
+	/**
+	 * Returns a constructor of a {@code HTTPClient} implementation for the given protocol <b>name</b>.
+	 *
+	 * @param name The protocol name
+	 * @return The constructor
+	 * @see #registerHTTPClientImplementation(String, HTTPClientConstructor, String)
+	 */
+	@SuppressWarnings("unchecked")
+	public HTTPClientConstructor getHTTPClientImplementation(String name){
+		return (HTTPClientConstructor) this.httpClientImplementations.get(name)[0];
+	}
+
+	/**
+	 * Returns the application layer protocol name for the given protocol <b>name</b>.
+	 *
+	 * @param name The protocol name
+	 * @return The constructor
+	 * @see #registerHTTPClientImplementation(String, HTTPClientConstructor, String)
+	 */
+	@SuppressWarnings("unchecked")
+	public String getHTTPClientALPName(String name){
+		return (String) this.httpClientImplementations.get(name)[1];
 	}
 
 	/**
@@ -228,5 +269,25 @@ public final class ProxyRegistry {
 		HTTPErrdoc defErrdoc = HTTPErrdoc.fromString(new String(defErrdocData));
 		this.setErrdoc(defErrdoc.getMimeType(), defErrdoc);
 		this.errdocDefault = defErrdoc;
+	}
+
+
+	/**
+	 * Represents a constructor for a {@link HTTPClient}.
+	 *
+	 * @since 3.10.1
+	 */
+	@FunctionalInterface
+	public static interface HTTPClientConstructor {
+
+		/**
+		 * Creates a new {@code HTTPClient} instance.
+		 *
+		 * @param upstreamConnection The connection to the server used by the upstream client
+		 * @param userver The {@code UpstreamServer}
+		 * @param config The {@code HTTPEngineConfig} to use
+		 * @param dserver The downstream {@code HTTPServer} instance
+		 */
+		public HTTPClient construct(SocketConnection upstreamConnection, UpstreamServer userver, HTTPEngineConfig config, HTTPServer dserver);
 	}
 }

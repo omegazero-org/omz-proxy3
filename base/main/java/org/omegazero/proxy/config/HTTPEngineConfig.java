@@ -32,6 +32,7 @@ public class HTTPEngineConfig extends ConfigObject {
 	private transient int maxHeaderSize;
 	private transient int requestTimeout;
 	private transient int responseTimeout;
+	private transient int maxConnectionsPerServer;
 
 	public HTTPEngineConfig(ConfigObject co) {
 		this(co.copyData());
@@ -51,6 +52,7 @@ public class HTTPEngineConfig extends ConfigObject {
 		this.maxHeaderSize = super.optInt("maxHeaderSize", 8192);
 		this.requestTimeout = super.optInt("requestTimeout", 5) * 1000;
 		this.responseTimeout = super.optInt("responseTimeout", 60) * 1000;
+		this.maxConnectionsPerServer = super.optInt("maxConnectionsPerServer", 5);
 
 		if(this.upstreamConnectionTimeout == this.responseTimeout)
 			throw new IllegalArgumentException("responseTimeout must not equal upstreamConnectionTimeout");
@@ -110,6 +112,16 @@ public class HTTPEngineConfig extends ConfigObject {
 	 */
 	public int getResponseTimeout() {
 		return this.responseTimeout;
+	}
+
+	/**
+	 * Returns the maximum number of simultaneous connections to an {@code UpstreamServer} for a single client.
+	 *
+	 * @return The maximum number of connections
+	 * @since 3.10.1
+	 */
+	public int getMaxConnectionsPerServer(){
+		return this.maxConnectionsPerServer;
 	}
 
 

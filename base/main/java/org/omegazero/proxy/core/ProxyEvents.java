@@ -33,10 +33,10 @@ public final class ProxyEvents {
 	public static final Event SHUTDOWN = new Event("onShutdown", new Class<?>[] {});
 	public static final Event DOWNSTREAM_CONNECTION = new Event("onDownstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event DOWNSTREAM_CONNECTION_CLOSED = new Event("onDownstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
-	public static final Event INVALID_HTTP_REQUEST = new Event("onInvalidHTTPRequest", new Class<?>[] { SocketConnection.class, byte[].class });
+	public static final Event INVALID_HTTP_REQUEST = new Event("onInvalidHTTPRequest", new Class<?>[] { SocketConnection.class, byte[].class }); // deprecated since 3.10.1
 	public static final Event INVALID_UPSTREAM_SERVER = new Event("onInvalidUpstreamServer", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class });
 	public static final Event INVALID_HTTP_RESPONSE = new Event("onInvalidHTTPResponse",
-			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, byte[].class });
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPRequest.class, byte[].class }); // deprecated since 3.10.1
 	public static final Event HTTP_REQUEST_PRE_LOG = new Event("onHTTPRequestPreLog", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class });
 	public static final Event HTTP_REQUEST_SELECT_SERVER = new Event("onHTTPRequestSelectServer",
 			new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class }, UpstreamServer.class); // since 3.9.1
@@ -63,6 +63,7 @@ public final class ProxyEvents {
 	public static final Event UPSTREAM_CONNECTION_CLOSED = new Event("onUpstreamConnectionClosed", new Class<?>[] { SocketConnection.class });
 	public static final Event UPSTREAM_CONNECTION_ERROR = new Event("onUpstreamConnectionError", new Class<?>[] { SocketConnection.class, Throwable.class });
 	public static final Event UPSTREAM_CONNECTION_TIMEOUT = new Event("onUpstreamConnectionTimeout", new Class<?>[] { SocketConnection.class });
+	public static final Event PROTOCOL_SWITCHED = new Event("onProtocolSwitched", new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPResponse.class }); // since 3.10.1
 	public static final Event MISSING_TLS_DATA = new Event("getMissingTLSData", new Class<?>[] { String.class, String.class }, java.util.Map.Entry.class);
 
 	private static final Set<String> validEventNames = new java.util.HashSet<>();
