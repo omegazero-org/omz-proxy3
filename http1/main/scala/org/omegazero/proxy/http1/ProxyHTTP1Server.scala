@@ -231,6 +231,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 				response.setHeader("transfer-encoding", "chunked");
 				this.chunkedTransfer = true;
 			}
+			response.setHttpVersion(HTTP1.VERSION_NAME);
 			ProxyHTTP1Server.this.writeHTTPMsg(response);
 		}
 
