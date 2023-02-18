@@ -150,12 +150,19 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 		override def setReceiveData(receiveData: Boolean): Unit = this.ustream.setReceiveData(receiveData);
 
 		override def startRequest(): Unit = {
+			this.request.deleteHeader("transfer-encoding");
+			this.request.deleteHeader("connection");
+			this.request.deleteHeader("keep-alive");
+			this.request.deleteHeader("upgrade");
 			this.request.setHttpVersion(HTTP2.VERSION_NAME);
 			this.ustream.sendHTTPMessage(this.request, false);
 		}
 
 		override def sendRequestData(data: Array[Byte], last: Boolean): Boolean = {
-			this.ustream.sendData(data, last);
+			if(data.length != 0 || last)
+				return this.ustream.sendData(data, last);
+			else
+				return true;
 		}
 
 		override def endRequest(trailers: HTTPMessageTrailers): Unit = {

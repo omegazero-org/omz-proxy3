@@ -254,6 +254,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 		}
 
 		override def startResponse(response: HTTPResponse): Unit = {
+			response.setHttpVersion(HTTP2.VERSION_NAME);
 			this.clientStream.sendHTTPMessage(response, false);
 		}
 
