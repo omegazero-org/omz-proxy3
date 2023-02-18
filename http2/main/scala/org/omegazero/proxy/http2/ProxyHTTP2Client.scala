@@ -123,6 +123,9 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 		ustream.setOnTrailers((trailers) => {
 			reqstream.callOnResponseEnded(trailers);
 		});
+		ustream.setOnDataFlushed(() => {
+			reqstream.callOnWritable();
+		});
 		ustream.setOnClosed((status) => {
 			if(logger.debug())
 				logger.debug(this.remoteName, " Client request stream ", ustream.getStreamId(), " closed with status ", HTTP2ConnectionError.getStatusCodeName(status));
