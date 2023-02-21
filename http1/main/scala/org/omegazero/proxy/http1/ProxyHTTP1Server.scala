@@ -15,7 +15,7 @@ import org.omegazero.common.event.Tasks;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.net.common.NetCommon;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.http.common.{HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData, InvalidHTTPMessageException};
+import org.omegazero.http.common.{HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData, InvalidHTTPMessageException, MessageStreamClosedException};
 import org.omegazero.http.h1.{HTTP1MessageTransmitter, HTTP1RequestReceiver, HTTP1Util, MessageBodyDechunker};
 import org.omegazero.http.netutil.SocketConnectionWritable;
 import org.omegazero.http.util.{AbstractHTTPServerStream, HTTPServer, HTTPServerStream, HTTPStatus, WritableSocket};
@@ -217,7 +217,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 		var pendingResponse: Option[HTTPResponseData] = None;
 		def requestEnded = !this.request.hasAttachment(ProxyHTTP1Server.ATTACHMENT_KEY_DECHUNKER);
 
-		override def close(): Unit = {
+		override def close(reason: MessageStreamClosedException.CloseReason): Unit = {
 			ProxyHTTP1Server.this.connection.destroy();
 			this.closed = true;
 		}

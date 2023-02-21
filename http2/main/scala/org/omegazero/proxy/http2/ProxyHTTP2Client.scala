@@ -13,7 +13,7 @@ import java.util.Collections;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.http.common.{HTTPMessageTrailers, HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData};
+import org.omegazero.http.common.{HTTPMessageTrailers, HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData, MessageStreamClosedException};
 import org.omegazero.http.h2.{HTTP2Client, HTTP2ConnectionError};
 import org.omegazero.http.h2.hpack.HPackContext;
 import org.omegazero.http.h2.streams.MessageStream;
@@ -132,7 +132,7 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 			this.requestStreams.remove(ustream.getStreamId());
 			super.streamClosed(ustream);
 			if(reqstream.getResponse() == null)
-				reqstream.callOnError(new HTTP2ConnectionError(status, true));
+				reqstream.callOnError(new MessageStreamClosedException(HTTP2Common.http2StatusToCloseReason(status)));
 		});
 
 		this.requestStreams.put(ustream.getStreamId(), reqstream);
@@ -144,8 +144,8 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 
 		private[http2] def hasServerPushHandler: Boolean = this.onServerPush != null;
 
-		override def close(): Unit = {
-			this.ustream.rst(HTTP2Constants.STATUS_CANCEL);
+		override def close(reason: MessageStreamClosedException.CloseReason): Unit = {
+			this.ustream.rst(HTTP2Common.closeReasonToHttp2Status(reason));
 		}
 
 		override def isClosed(): Boolean = this.ustream.isClosed();

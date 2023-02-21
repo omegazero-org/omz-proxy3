@@ -22,6 +22,7 @@ import org.omegazero.http.common.HTTPRequest;
 import org.omegazero.http.common.HTTPRequestData;
 import org.omegazero.http.common.HTTPResponse;
 import org.omegazero.http.common.HTTPResponseData;
+import org.omegazero.http.common.MessageStreamClosedException;
 import org.omegazero.http.netutil.SocketConnectionWritable;
 import org.omegazero.http.util.HTTPClient;
 import org.omegazero.http.util.HTTPClientStream;
@@ -246,7 +247,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		if(ureq == null){ // no request stream could be created, abort client request
 			if(logger.debug())
 				logger.debug("Could not create upstream HTTPClientStream for request ", request.getAttachment(HTTPCommon.ATTACHMENT_KEY_REQUEST_ID), ", aborting client request");
-			req.close();
+			req.close(MessageStreamClosedException.CloseReason.REFUSED);
 		}else{
 			request.setAttachment(ATTACHMENT_KEY_USERVER_CLIENT, ureq.getClient());
 		}
@@ -433,11 +434,6 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 	private void setupResponseStreamBase(HTTPServerStream req, HTTPClientStream ureq, SocketConnection uconn, UpstreamServer userver){
 		HTTPRequest request = req.getRequest();
 		Object conndbg = ((AbstractSocketConnection) uconn).getAttachment(CONNDBG);
-		ureq.onError((err) -> {
-			if(logger.debug())
-				logger.debug(conndbg, " Response stream error: ", err);
-			req.close();
-		});
 		ureq.onResponse((response) -> {
 			synchronized(req){
 				if(req.isClosed()){
@@ -507,10 +503,14 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 					ureq.close();
 					return;
 				}
-				/* TODO handle this
-				if(status == HTTP2Constants.STATUS_ENHANCE_YOUR_CALM || status == HTTP2Constants.STATUS_HTTP_1_1_REQUIRED){ // passthrough error to client
-					dsStream.rst(status);
-				}*/
+				logger.debug(conndbg, " Response stream error: ", err);
+				if(err instanceof MessageStreamClosedException){
+					MessageStreamClosedException.CloseReason reason = ((MessageStreamClosedException) err).getCloseReason();
+					if(reason == MessageStreamClosedException.CloseReason.PROTOCOL_DOWNGRADE || reason == MessageStreamClosedException.CloseReason.ENHANCE_YOUR_CALM){
+						req.close(reason);
+						return;
+					}
+				}
 				this.respondUNetError(request, STATUS_BAD_GATEWAY, "Upstream message stream error: " + err, uconn, userver);
 			}
 		});

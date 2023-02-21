@@ -13,7 +13,7 @@ import java.util.Collections;
 
 import org.omegazero.common.logging.Logger;
 import org.omegazero.net.socket.SocketConnection;
-import org.omegazero.http.common.{HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData, InvalidHTTPMessageException};
+import org.omegazero.http.common.{HTTPRequest, HTTPRequestData, HTTPResponse, HTTPResponseData, InvalidHTTPMessageException, MessageStreamClosedException};
 import org.omegazero.http.h1.{HTTP1MessageTransmitter, HTTP1ResponseReceiver, HTTP1Util, MessageBodyDechunker};
 import org.omegazero.http.netutil.SocketConnectionWritable;
 import org.omegazero.http.util.{AbstractHTTPClientStream, HTTPClient, HTTPClientStream, HTTPServer, WritableSocket};
@@ -128,7 +128,7 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 
 	class OutgoingRequestStream(request: HTTPRequest) extends AbstractHTTPClientStream(request, ProxyHTTP1Client.this) {
 
-		override def close(): Unit = {
+		override def close(reason: MessageStreamClosedException.CloseReason): Unit = {
 			ProxyHTTP1Client.this.connection.destroy();
 			this.closed = true;
 		}

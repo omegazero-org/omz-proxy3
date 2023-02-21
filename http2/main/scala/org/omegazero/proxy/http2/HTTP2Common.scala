@@ -6,6 +6,7 @@
  */
 package org.omegazero.proxy.http2;
 
+import org.omegazero.http.common.MessageStreamClosedException.CloseReason;
 import org.omegazero.http.h2.util.HTTP2Settings;
 import org.omegazero.http.h2.streams.MessageStream;
 import org.omegazero.proxy.config.HTTPEngineConfig;
@@ -38,5 +39,28 @@ object HTTP2Common {
 	def initMessageStream(ms: MessageStream): Unit = {
 		ms.setRequestSupplier(new org.omegazero.proxy.http.ProxyHTTPRequest(_, _, _, _, _, _));
 		ms.setResponseSupplier(new org.omegazero.proxy.http.ProxyHTTPResponse(_, _, _));
+	}
+
+	def http2StatusToCloseReason(status: Int): CloseReason = {
+		status match {
+			case STATUS_PROTOCOL_ERROR | STATUS_FLOW_CONTROL_ERROR | STATUS_SETTINGS_TIMEOUT | STATUS_FRAME_SIZE_ERROR | STATUS_COMPRESSION_ERROR => CloseReason.PROTOCOL_ERROR
+			case STATUS_INTERNAL_ERROR => CloseReason.INTERNAL_ERROR
+			case STATUS_CANCEL => CloseReason.CANCEL
+			case STATUS_REFUSED_STREAM => CloseReason.REFUSED
+			case STATUS_ENHANCE_YOUR_CALM => CloseReason.ENHANCE_YOUR_CALM
+			case STATUS_HTTP_1_1_REQUIRED => CloseReason.PROTOCOL_DOWNGRADE
+			case _ => CloseReason.UNKNOWN
+		}
+	}
+
+	def closeReasonToHttp2Status(reason: CloseReason): Int = {
+		reason match {
+			case CloseReason.PROTOCOL_ERROR => STATUS_PROTOCOL_ERROR
+			case CloseReason.INTERNAL_ERROR => STATUS_INTERNAL_ERROR
+			case CloseReason.REFUSED => STATUS_REFUSED_STREAM
+			case CloseReason.ENHANCE_YOUR_CALM => STATUS_ENHANCE_YOUR_CALM
+			case CloseReason.PROTOCOL_DOWNGRADE => STATUS_HTTP_1_1_REQUIRED
+			case _ => STATUS_CANCEL
+		}
 	}
 }
