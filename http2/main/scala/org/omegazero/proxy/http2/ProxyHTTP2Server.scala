@@ -228,6 +228,8 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 		override def setReceiveData(receiveData: Boolean): Unit = this.clientStream.setReceiveData(receiveData);
 
 		override def startServerPush(promiseRequest: HTTPRequest): HTTPServerStream = {
+			if(!ProxyHTTP2Server.super.checkLocalCreateStream())
+				return null;
 			var cs = ProxyHTTP2Server.super.getControlStream();
 			var ppstream = new MessageStream(ProxyHTTP2Server.this.nextPushStreamId, ProxyHTTP2Server.this.connection, cs, ProxyHTTP2Server.this.hpack);
 			HTTP2Common.initMessageStream(ppstream);
@@ -239,6 +241,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 			promiseRequest.setAttachment(MessageStream.ATTACHMENT_KEY_STREAM_ID, ppstream.getStreamId());
 
 			var reqstream = new IncomingRequestStream(promiseRequest, ppstream);
+			reqstream.requestEnded = true;
 			reqstream.setReceiveData(true);
 
 			ProxyHTTP2Server.this.requestStreams.put(ppstream.getStreamId(), reqstream);
