@@ -69,8 +69,9 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 		return this.currentRequestStream.get;
 	}
 
-	override def getActiveRequests(): Collection[HTTPClientStream] =
-		if this.currentRequestStream.isDefined then Collections.singleton(this.currentRequestStream.get) else Collections.emptySet();
+	override def getActiveRequests(): Collection[HTTPClientStream] = if this.currentRequestStream.isDefined then Collections.singleton(this.currentRequestStream.get) else Collections.emptySet();
+
+	override def getMaxConcurrentRequestCount(): Int = 1;
 
 
 	private def processResponseData(data: Array[Byte]): Unit = {

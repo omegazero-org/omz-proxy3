@@ -17,7 +17,7 @@ import org.omegazero.http.common.{HTTPMessageTrailers, HTTPRequest, HTTPRequestD
 import org.omegazero.http.h2.{HTTP2Client, HTTP2ConnectionError};
 import org.omegazero.http.h2.hpack.HPackContext;
 import org.omegazero.http.h2.streams.MessageStream;
-import org.omegazero.http.h2.util.{HTTP2Constants, HTTP2Settings, HTTP2Util};
+import org.omegazero.http.h2.util.{HTTP2Settings, HTTP2Util};
 import org.omegazero.http.netutil.SocketConnectionWritable;
 import org.omegazero.http.util.{AbstractHTTPClientStream, HTTPClient, HTTPClientStream, HTTPServer, WritableSocket};
 import org.omegazero.proxy.config.HTTPEngineConfig;
@@ -88,9 +88,9 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 
 		ustream.setOnPushPromise((promiseRequest) => {
 			if(!this.enablePush)
-				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_PROTOCOL_ERROR, true);
+				throw new HTTP2ConnectionError(STATUS_PROTOCOL_ERROR, true);
 			if(!reqstream.hasServerPushHandler)
-				throw new HTTP2ConnectionError(HTTP2Constants.STATUS_CANCEL, true);
+				throw new HTTP2ConnectionError(STATUS_CANCEL, true);
 			var ppstream = super.handlePushPromise(promiseRequest);
 			if(logger.debug())
 				logger.debug(this.remoteName, " Created new client push promise stream ", ppstream.getStreamId(), " for a pushed request");
@@ -101,6 +101,8 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 	}
 
 	override def getActiveRequests(): Collection[HTTPClientStream] = Collections.unmodifiableCollection(this.requestStreams.values());
+
+	override def getMaxConcurrentRequestCount(): Int = super.getControlStream().getRemoteSettings().get(SETTINGS_MAX_CONCURRENT_STREAMS);
 
 
 	private def prepareStream(request: HTTPRequest, ustream: MessageStream): OutgoingRequestStream = {
