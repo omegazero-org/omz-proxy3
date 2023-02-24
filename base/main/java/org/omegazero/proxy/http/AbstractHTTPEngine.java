@@ -360,7 +360,15 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 	private HTTPClientStream setupRequestStream(HTTPServerStream req){
 		HTTPRequest request = req.getRequest();
-		HTTPClientStream ureq = this.createClientStream(req);
+		HTTPClientStream ureq0;
+		try{
+			ureq0 = this.createClientStream(req);
+		}catch(Exception e){
+			ureq0 = null;
+			this.respondInternalError(request, e);
+			logger.error("Error while handling request: ", e);
+		}
+		HTTPClientStream ureq = ureq0;
 		if(req.isClosed()) // request aborted
 			return null;
 		UpstreamServer userver = (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER);
@@ -421,12 +429,29 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 				this.getRequestLogger().info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(promiseRequestId), "/<promise> - '",
 						promiseRequest.requestLine(), "'");
 
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, promiseRequest, userver);
-			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, promiseRequest, userver);
-
 			HTTPServerStream dsstream = req.startServerPush(promiseRequest);
-			this.setupResponseStreamBase(dsstream, resstream, uconn, userver);
-			this.requestEnded(promiseRequest, dsstream, resstream);
+			if(dsstream == null){
+				logger.debug(this.downstreamConnectionDbgstr, " Failed to create push promise stream, aborting upstream push promise");
+				resstream.close();
+				return;
+			}
+
+			try{
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST, this.downstreamConnection, promiseRequest, userver);
+				this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, promiseRequest, userver);
+
+				dsstream.onError((err) -> {
+					logger.debug(this.downstreamConnectionDbgstr, " Downstream push promise stream error: ", err);
+					resstream.close();
+				});
+				this.setupResponseStreamBase(dsstream, resstream, uconn, userver);
+				this.requestEnded(promiseRequest, dsstream, resstream);
+			}catch(Exception e){
+				this.respondInternalError(promiseRequest, e);
+				logger.error("Error while handling push promise request: ", e);
+				resstream.close();
+				this.requestEnded(promiseRequest, dsstream, null);
+			}
 		});
 		this.setupResponseStreamBase(req, ureq, uconn, userver);
 	}
