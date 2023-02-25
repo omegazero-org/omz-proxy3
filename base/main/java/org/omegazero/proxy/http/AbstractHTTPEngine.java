@@ -12,6 +12,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Consumer;
 
 import org.omegazero.common.event.Tasks;
 import org.omegazero.common.eventbus.EventResult;
@@ -134,7 +135,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 				this.httpServer.receive(data);
 		}catch(Exception e){
 			logger.error(this.downstreamConnectionDbgstr, " Uncaught error while processing packet: ", e);
-			this.downstreamConnection.close();
+			this.downstreamConnection.destroy();
 		}
 	}
 
@@ -182,19 +183,42 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		}
 	}
 
-	private void respondToAllRequestsForUClient(HTTPClient client, UpstreamServer userver, int status, String message, Object ex){
+	private void endRequestsForUClient(HTTPClient client, Consumer<HTTPServerStream> callback){
 		for(HTTPServerStream req : this.httpServer.getActiveRequests()){
 			HTTPClient uclientR = (HTTPClient) req.getRequest().getAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
 			if(client == uclientR){
 				if(req.getRequest().hasResponse()){
 					req.close();
-				}else if(ex instanceof SocketConnection){
-					this.respondUNetError(req.getRequest(), status, message, (SocketConnection) ex, userver);
-				}else if(ex instanceof Throwable){
-					this.respondInternalError(req.getRequest(), (Throwable) ex);
 				}else
-					this.respondError(req.getRequest(), status, message);
+					callback.accept(req);
 			}
+		}
+	}
+
+	private void handleUpstreamMessageStreamError(HTTPServerStream req, Throwable err, AbstractSocketConnection uconn, UpstreamServer userver){
+		if(err instanceof org.omegazero.common.event.task.ExecutionFailedException)
+			err = err.getCause();
+		Exception e2 = null;
+		try{
+			if(!req.getRequest().hasResponse()){
+				if(err instanceof IOException)
+					this.respondUNetError(req.getRequest(), STATUS_BAD_GATEWAY, HTTPCommon.getUpstreamErrorMessage(err), uconn, userver);
+				else
+					this.respondInternalError(req.getRequest(), err);
+			}else
+				req.close(MessageStreamClosedException.CloseReason.INTERNAL_ERROR);
+		}catch(Exception ue){
+			this.respondInternalError(req.getRequest(), ue);
+			e2 = ue;
+		}
+		if(err instanceof IOException){
+			logUNetError(uconn.getAttachment(CONNDBG), " Error: ", NetCommon.PRINT_STACK_TRACES ? err : err.toString());
+			if(e2 != null)
+				logger.error(uconn.getAttachment(CONNDBG), " Internal error while handling upstream stream error: ", e2);
+		}else{
+			if(e2 != null)
+				err.addSuppressed(e2);
+			logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", err);
 		}
 	}
 
@@ -254,8 +278,8 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		return ureq;
 	}
 
-	private HTTPClient createClient(UpstreamServer userver, HTTPRequest request){
-		// ! use of request in callbacks is disallowed; only use for respondError
+	private HTTPClient createClient(UpstreamServer userver, HTTPRequest initrequest){
+		// ! use of initrequest in callbacks is disallowed; only use for respondError
 		ProxyRegistry.HTTPClientConstructor constructor = null;
 		String protocol = this.getHTTPVersionName();
 		if(userver.isProtocolSupported(protocol))
@@ -273,7 +297,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			}
 		}
 		if(constructor == null){
-			this.respondError(request, STATUS_HTTP_VERSION_NOT_SUPPORTED, HTTPCommon.MSG_PROTO_NOT_SUPPORTED + this.getHTTPVersionName());
+			this.respondError(initrequest, STATUS_HTTP_VERSION_NOT_SUPPORTED, HTTPCommon.MSG_PROTO_NOT_SUPPORTED + this.getHTTPVersionName());
 			return null;
 		}
 
@@ -282,7 +306,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			uconn = (AbstractSocketConnection) ProxyUtil.connectUpstreamTCP(this.proxy, this.downstreamConnection, this.isDownstreamConnectionSecure(),
 					userver, new String[] { this.proxy.getRegistry().getHTTPClientALPName(protocol) });
 		}catch(IOException e){
-			this.respondInternalError(request, e);
+			this.respondInternalError(initrequest, e);
 			logger.error("Connection failed: ", e);
 			return null;
 		}
@@ -306,41 +330,35 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_TIMEOUT, uconn);
 			if(this.downstreamClosed)
 				return;
-			this.respondToAllRequestsForUClient(client, userver, STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn);
+			this.endRequestsForUClient(client, (req) -> {
+				this.respondUNetError(req.getRequest(), STATUS_GATEWAY_TIMEOUT, HTTPCommon.MSG_UPSTREAM_CONNECT_TIMEOUT, uconn, userver);
+			});
 		});
 		uconn.on("error", (Throwable e) -> {
 			if(e instanceof org.omegazero.common.event.task.ExecutionFailedException)
 				e = e.getCause();
-			Exception e2 = null;
 			try{
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
-
-				if(this.downstreamClosed)
-					return;
-				if(e instanceof IOException)
-					this.respondToAllRequestsForUClient(client, userver, STATUS_BAD_GATEWAY, HTTPCommon.getUpstreamErrorMessage(e), uconn);
-				else
-					this.respondToAllRequestsForUClient(client, userver, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR, null);
 			}catch(Exception ue){
-				e2 = ue;
+				e.addSuppressed(ue);
 			}
-			if(e2 != null)
-				this.respondToAllRequestsForUClient(client, userver, STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR, e2);
-			if(e instanceof IOException){
-				logUNetError(uconn.getAttachment(CONNDBG), " Error: ", NetCommon.PRINT_STACK_TRACES ? e : e.toString());
-				if(e2 != null)
-					logger.error(uconn.getAttachment(CONNDBG), " Internal error while handling upstream connection error: ", e2);
-			}else{
-				if(e2 != null)
-					e.addSuppressed(e2);
-				logger.error(uconn.getAttachment(CONNDBG), " Internal error: ", e);
-			}
+			if(this.downstreamClosed)
+				return;
+			final Throwable e0 = e;
+			uconn.getWorker().accept(() -> {
+				this.endRequestsForUClient(client, (req) -> {
+					this.handleUpstreamMessageStreamError(req, e0, uconn, userver);
+				});
+			});
 		});
 		uconn.on("close", () -> {
 			logger.debug(uconn.getAttachment(CONNDBG), " Disconnected");
 			this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_CLOSED, uconn);
-			if(!this.downstreamClosed) // respond to all incomplete requests for this connection with an error
-				this.respondToAllRequestsForUClient(client, userver, STATUS_BAD_GATEWAY, HTTPCommon.MSG_UPSTREAM_CONNECTION_CLOSED, uconn);
+			if(!this.downstreamClosed){ // respond to all incomplete requests for this connection with an error
+				this.endRequestsForUClient(client, (req) -> {
+					this.respondUNetError(req.getRequest(), STATUS_BAD_GATEWAY, HTTPCommon.MSG_UPSTREAM_CONNECTION_CLOSED, uconn, userver);
+				});
+			}
 			HTTPClientSet clientset = this.upstreamClients.get(userver);
 			clientset.remove(client);
 			if(clientset.isEmpty())
@@ -362,6 +380,12 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 		HTTPRequest request = req.getRequest();
 		HTTPClientStream ureq0;
 		try{
+			String requestId = this.initRequest(request);
+
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
+			if(!this.config.isDisableDefaultRequestLog())
+				this.getRequestLogger().info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
+
 			ureq0 = this.createClientStream(req);
 		}catch(Exception e){
 			ureq0 = null;
@@ -444,7 +468,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 					logger.debug(this.downstreamConnectionDbgstr, " Downstream push promise stream error: ", err);
 					resstream.close();
 				});
-				this.setupResponseStreamBase(dsstream, resstream, uconn, userver);
+				this.setupResponseStreamBase(dsstream, resstream, (AbstractSocketConnection) uconn, userver);
 				this.requestEnded(promiseRequest, dsstream, resstream);
 			}catch(Exception e){
 				this.respondInternalError(promiseRequest, e);
@@ -453,12 +477,11 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 				this.requestEnded(promiseRequest, dsstream, null);
 			}
 		});
-		this.setupResponseStreamBase(req, ureq, uconn, userver);
+		this.setupResponseStreamBase(req, ureq, (AbstractSocketConnection) uconn, userver);
 	}
 
-	private void setupResponseStreamBase(HTTPServerStream req, HTTPClientStream ureq, SocketConnection uconn, UpstreamServer userver){
+	private void setupResponseStreamBase(HTTPServerStream req, HTTPClientStream ureq, AbstractSocketConnection uconn, UpstreamServer userver){
 		HTTPRequest request = req.getRequest();
-		Object conndbg = ((AbstractSocketConnection) uconn).getAttachment(CONNDBG);
 		ureq.onResponse((response) -> {
 			synchronized(req){
 				if(req.isClosed()){
@@ -468,7 +491,6 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 				if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
 					Tasks.I.clear(request.removeAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
-				request.removeAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
 
 				if(!HTTPCommon.setRequestResponse(request, response)){
 					ureq.close();
@@ -496,6 +518,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 					request.setOther(null); // reset to allow respondInternalError to write a response
 					throw e;
 				}
+				request.removeAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
 				req.startResponse(response);
 			}
 		});
@@ -528,7 +551,6 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 					ureq.close();
 					return;
 				}
-				logger.debug(conndbg, " Response stream error: ", err);
 				if(err instanceof MessageStreamClosedException){
 					MessageStreamClosedException.CloseReason reason = ((MessageStreamClosedException) err).getCloseReason();
 					if(reason == MessageStreamClosedException.CloseReason.PROTOCOL_DOWNGRADE || reason == MessageStreamClosedException.CloseReason.ENHANCE_YOUR_CALM){
@@ -536,7 +558,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 						return;
 					}
 				}
-				this.respondUNetError(request, STATUS_BAD_GATEWAY, "Upstream message stream error: " + err, uconn, userver);
+				this.handleUpstreamMessageStreamError(req, err, uconn, userver);
 			}
 		});
 
@@ -595,13 +617,6 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 
 	private void receiveNewRequest(HTTPServerStream req){
-		HTTPRequest request = req.getRequest();
-		String requestId = this.initRequest(request);
-
-		this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_PRE_LOG, this.downstreamConnection, request);
-		if(!this.config.isDisableDefaultRequestLog())
-			this.getRequestLogger().info(this.downstreamConnection.getApparentRemoteAddress(), "/", HTTPCommon.shortenRequestId(requestId), " - '", request.requestLine(), "'");
-
 		HTTPClientStream ureq = this.setupRequestStream(req);
 		if(ureq != null){
 			this.setupResponseStream(req, ureq, ((org.omegazero.http.netutil.SocketConnectionWritable) ureq.getClient().getConnection()).getConnection());
