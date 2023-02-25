@@ -37,6 +37,7 @@ This is a list of common properties for the default or a specific HTTP engine co
 | maxHeaderSize | number | The maximum size of a HTTP message header (the start line and all headers) in bytes. | no | `8192` | 3.6.1 |
 | requestTimeout | number | The maximum time in seconds to wait for a request to finish before responding with status 408. | no | `5` | 3.6.1 |
 | responseTimeout | number | The maximum time in seconds to wait for a response from an upstream server before responding with status 504. This must not equal `upstreamConnectionTimeout`, because it would cause undefined behavior. | no | `60` | 3.6.1 |
+| maxStreamsPerServer | number | The maximum number of concurrent active requests (streams) to an upstream server for a single client. In HTTP/2, this is the sum of the *MAX_CONCURRENT_STREAMS* setting of all open connections; in HTTP/1.1, this is the number of connections (since HTTP/1.1 only supports a single concurrent request per connection). If the value is exceeded, no new connections will be created. | `100` | 3.10.1 |
 
 ### Example
 
