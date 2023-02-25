@@ -631,10 +631,13 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 
 		private HTTPClient newClient(HTTPRequest request){
-			int maxConns = AbstractHTTPEngine.this.config.getMaxConnectionsPerServer();
-			if(this.clients.size() >= AbstractHTTPEngine.this.config.getMaxConnectionsPerServer())
+			int maxStreams = AbstractHTTPEngine.this.config.getMaxStreamsPerServer();
+			int currentMaxStreams = 0;
+			for(HTTPClient client : this.clients)
+				currentMaxStreams += client.getMaxConcurrentRequestCount();
+			if(currentMaxStreams >= AbstractHTTPEngine.this.config.getMaxStreamsPerServer())
 				return null;
-			logger.trace(AbstractHTTPEngine.this.downstreamConnectionDbgstr, " Creating new HTTPClient instance (", this.clients.size(), "+1 of ", maxConns, " total)");
+			logger.debug(AbstractHTTPEngine.this.downstreamConnectionDbgstr, " Creating new HTTPClient instance (", currentMaxStreams, "+n of ", maxStreams, " streams total)");
 			HTTPClient newClient = AbstractHTTPEngine.this.createClient(this.userver, request);
 			if(newClient != null)
 				this.clients.add(newClient);
