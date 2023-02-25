@@ -222,7 +222,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 			this.closed = true;
 		}
 
-		override def setReceiveData(receiveData: Boolean): Unit = ProxyHTTP1Server.this.connection.setReadBlock(!receiveData);
+		override def setReceiveData(receiveData: Boolean): Unit = scala.util.control.Exception.ignoring(classOf[Exception]){ ProxyHTTP1Server.this.connection.setReadBlock(!receiveData); }
 
 		override def startResponse(response: HTTPResponse): Unit = {
 			if(!this.requestEnded)

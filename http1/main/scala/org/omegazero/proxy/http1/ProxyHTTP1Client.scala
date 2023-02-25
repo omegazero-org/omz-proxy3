@@ -134,7 +134,7 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 			this.closed = true;
 		}
 
-		override def setReceiveData(receiveData: Boolean): Unit = ProxyHTTP1Client.this.connection.setReadBlock(!receiveData);
+		override def setReceiveData(receiveData: Boolean): Unit = scala.util.control.Exception.ignoring(classOf[Exception]){ ProxyHTTP1Client.this.connection.setReadBlock(!receiveData); }
 
 		override def startRequest(): Unit = {
 			this.request.setHttpVersion(HTTP1.VERSION_NAME);
