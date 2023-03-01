@@ -119,30 +119,37 @@ public final class ProxyRegistry {
 	 */
 	public void registerHTTPClientImplementation(String name, HTTPClientConstructor constructor, String alpName){
 		this.httpClientImplementations.put(name, new Object[] { constructor, alpName });
+		logger.info("Added HTTP client implementation for ", name);
 	}
 
 	/**
 	 * Returns a constructor of a {@code HTTPClient} implementation for the given protocol <b>name</b>.
 	 *
 	 * @param name The protocol name
-	 * @return The constructor
+	 * @return The constructor, or {@code null} if no implementation for the given protocol name exists
 	 * @see #registerHTTPClientImplementation(String, HTTPClientConstructor, String)
 	 */
 	@SuppressWarnings("unchecked")
 	public HTTPClientConstructor getHTTPClientImplementation(String name){
-		return (HTTPClientConstructor) this.httpClientImplementations.get(name)[0];
+		Object[] e = this.httpClientImplementations.get(name);
+		if(e == null)
+			return null;
+		return (HTTPClientConstructor) e[0];
 	}
 
 	/**
 	 * Returns the application layer protocol name for the given protocol <b>name</b>.
 	 *
 	 * @param name The protocol name
-	 * @return The constructor
+	 * @return The name used in ALPN negotiation, or {@code null} if no implementation for the given protocol name exists
 	 * @see #registerHTTPClientImplementation(String, HTTPClientConstructor, String)
 	 */
 	@SuppressWarnings("unchecked")
 	public String getHTTPClientALPName(String name){
-		return (String) this.httpClientImplementations.get(name)[1];
+		Object[] e = this.httpClientImplementations.get(name);
+		if(e == null)
+			return null;
+		return (String) e[1];
 	}
 
 	/**
