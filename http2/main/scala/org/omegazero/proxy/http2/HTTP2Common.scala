@@ -6,6 +6,7 @@
  */
 package org.omegazero.proxy.http2;
 
+import org.omegazero.http.common.HTTPMessage;
 import org.omegazero.http.common.MessageStreamClosedException.CloseReason;
 import org.omegazero.http.h2.util.HTTP2Settings;
 import org.omegazero.http.h2.streams.MessageStream;
@@ -62,5 +63,12 @@ object HTTP2Common {
 			case CloseReason.PROTOCOL_DOWNGRADE => STATUS_HTTP_1_1_REQUIRED
 			case _ => STATUS_CANCEL
 		}
+	}
+
+	def deleteHttp1Headers(msg: HTTPMessage): Unit = {
+		msg.deleteHeader("transfer-encoding");
+		msg.deleteHeader("connection");
+		msg.deleteHeader("keep-alive");
+		msg.deleteHeader("upgrade");
 	}
 }

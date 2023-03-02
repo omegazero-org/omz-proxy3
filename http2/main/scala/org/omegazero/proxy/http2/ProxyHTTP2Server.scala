@@ -148,16 +148,11 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 			throw new IllegalStateException("Invalid stream");
 		logger.debug(this.remoteName, " Responding with status ", response.getStatus());
 
-		response.deleteHeader("transfer-encoding");
-		response.deleteHeader("connection");
-		response.deleteHeader("keep-alive");
-		response.deleteHeader("upgrade");
+		HTTP2Common.deleteHttp1Headers(response);
 
 		var data = HTTPCommon.prepareHTTPResponse(request, response, responsedata.getData());
-		if(!reqstream.clientStream.isExpectingResponse())
-			return;
 		request.synchronized {
-			if(reqstream.requestEnded){ // request incl data fully received
+			if(reqstream.requestEnded && reqstream.clientStream.isExpectingResponse()){ // request incl data fully received
 				reqstream.startResponse(response);
 				reqstream.sendResponseData(data, true);
 			}else
@@ -212,7 +207,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 		override def callOnRequestEnded(trailers: HTTPMessageTrailers) = {
 			super.callOnRequestEnded(trailers);
 			this.requestEnded = true;
-			if(this.pendingResponse.isDefined){
+			if(this.pendingResponse.isDefined && this.clientStream.isExpectingResponse()){
 				this.startResponse(this.pendingResponse.get.getHttpMessage());
 				this.sendResponseData(this.pendingResponse.get.getData(), true);
 			}
@@ -258,6 +253,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 
 		override def startResponse(response: HTTPResponse): Unit = {
 			response.setHttpVersion(HTTP2.VERSION_NAME);
+			HTTP2Common.deleteHttp1Headers(response);
 			this.clientStream.sendHTTPMessage(response, false);
 		}
 

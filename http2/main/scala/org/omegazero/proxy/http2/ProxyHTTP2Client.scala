@@ -155,11 +155,8 @@ class ProxyHTTP2Client(private val dsConnection: SocketConnection, private val u
 		override def setReceiveData(receiveData: Boolean): Unit = this.ustream.setReceiveData(receiveData);
 
 		override def startRequest(): Unit = {
-			this.request.deleteHeader("transfer-encoding");
-			this.request.deleteHeader("connection");
-			this.request.deleteHeader("keep-alive");
-			this.request.deleteHeader("upgrade");
 			this.request.setHttpVersion(HTTP2.VERSION_NAME);
+			HTTP2Common.deleteHttp1Headers(this.request);
 			this.ustream.sendHTTPMessage(this.request, false);
 		}
 
