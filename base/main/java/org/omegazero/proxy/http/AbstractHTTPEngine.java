@@ -155,9 +155,11 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 	@Override
 	public void respond(HTTPRequest request, HTTPResponseData responsedata){
 		this.httpServer.respond(request, responsedata);
-		if(request != null && request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
-			Tasks.I.clear(request.removeAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
-		request.removeAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
+		if(request != null){
+			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
+				Tasks.I.clear(request.removeAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT));
+			request.removeAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
+		}
 	}
 
 	@Override
@@ -408,10 +410,9 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 				if(userver != null){
 					this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_DATA, this.downstreamConnection, reqdata, userver);
 					if(ureq != null){
-						if(ureq.isClosed()){
-							if(!request.hasResponse())
-								this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
-						}else if(!ureq.sendRequestData(reqdata.getData(), false))
+						if(ureq.isClosed() && !request.hasResponse())
+							this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
+						if(!ureq.sendRequestData(reqdata.getData(), false))
 							req.setReceiveData(false);
 					}
 				}
@@ -426,11 +427,9 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 					if(trailers != null)
 						this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_TRAILERS, this.downstreamConnection, trailers, userver);
 					if(ureq != null){
-						if(ureq.isClosed()){
-							if(!request.hasResponse())
-								this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
-						}else
-							ureq.endRequest(trailers);
+						if(ureq.isClosed() && !request.hasResponse())
+							this.respondError(request, STATUS_BAD_GATEWAY, "Upstream message stream is no longer active");
+						ureq.endRequest(trailers);
 					}
 					this.proxy.dispatchEvent(ProxyEvents.HTTP_REQUEST_ENDED, this.downstreamConnection, request, userver);
 				}
