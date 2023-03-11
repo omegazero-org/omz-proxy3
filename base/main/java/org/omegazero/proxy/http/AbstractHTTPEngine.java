@@ -593,7 +593,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 				logger.error(this.downstreamConnectionDbgstr, " requestEnded: ", e);
 				return;
 			}
-			if(ureq != null && this.config.getResponseTimeout() > 0){
+			if(ureq != null && this.config.getResponseTimeout() > 0 && !request.hasResponse()){
 				Object tid = Tasks.I.timeout(() -> {
 					if(this.downstreamClosed || req.isClosed())
 						return;
