@@ -10,6 +10,7 @@ import org.omegazero.common.config.ConfigurationOption;
 import org.omegazero.common.eventbus.{EventBusSubscriber, SubscribeEvent};
 import org.omegazero.net.socket.TLSConnection;
 import org.omegazero.proxy.core.Proxy;
+import org.omegazero.proxy.util.ProxyUtil;
 
 @EventBusSubscriber
 class HTTP1Plugin {
@@ -19,7 +20,7 @@ class HTTP1Plugin {
 
 
 	@SubscribeEvent
-	def proxy_requiredFeatureSet() : String = if this.enable then "tcp.*" else null;
+	def proxy_requiredFeatureSet() : String = if this.enable then ProxyUtil.clientImplNamespace + ".*," + ProxyUtil.serverImplNamespace + ".*" else null;
 
 	@SubscribeEvent(priority = SubscribeEvent.Priority.LOW)
 	def proxy_registerALPNOption() : String = if this.enable then HTTP1.ALPN_NAME else null;

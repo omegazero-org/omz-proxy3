@@ -13,6 +13,7 @@ package org.omegazero.proxy.util;
 
 import java.net.InetSocketAddress;
 
+import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.net.client.params.ConnectionParameters;
 import org.omegazero.net.client.params.TLSConnectionParameters;
 import org.omegazero.net.socket.SocketConnection;
@@ -20,6 +21,9 @@ import org.omegazero.proxy.core.Proxy;
 import org.omegazero.proxy.net.UpstreamServer;
 
 public class ProxyUtil {
+
+	public static final String clientImplNamespace = PropertyUtil.getString("org.omegazero.proxy.clientImplNamespace", "tcp.client");
+	public static final String serverImplNamespace = PropertyUtil.getString("org.omegazero.proxy.serverImplNamespace", "tcp.server");
 
 
 	/**
@@ -163,12 +167,12 @@ public class ProxyUtil {
 		String type;
 		ConnectionParameters params;
 		if((downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
-			type = "tcp.client.tls";
+			type = clientImplNamespace + ".tls";
 			params = new TLSConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getSecurePort()));
 			((TLSConnectionParameters) params).setAlpnNames(alpn);
 			((TLSConnectionParameters) params).setSniOptions(new String[] { userver.getAddress().getHostName() });
 		}else if(userver.getPlainPort() > 0){
-			type = "tcp.client.plain";
+			type = clientImplNamespace + ".plain";
 			params = new ConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getPlainPort()));
 		}else
 			throw new RuntimeException("Upstream server " + userver.getAddress() + " neither has a plain nor a secure port set");
