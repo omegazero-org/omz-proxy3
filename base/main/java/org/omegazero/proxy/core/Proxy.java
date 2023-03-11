@@ -49,6 +49,7 @@ import org.omegazero.proxy.config.ProxyConfiguration;
 import org.omegazero.proxy.http.HTTPEngine;
 import org.omegazero.proxy.http.HTTPErrdoc;
 import org.omegazero.proxy.net.UpstreamServer;
+import org.omegazero.proxy.util.FeatureSet;
 
 /**
  * The main class of <i>omz-proxy</i>.
@@ -164,7 +165,14 @@ public final class Proxy implements Application {
 
 		this.serverWorkerProvider = new ApplicationWorkerProvider();
 
-		Defaults.registerProxyDefaults(this);
+		FeatureSet featureSet = new FeatureSet();
+		java.util.List<Object> featureSetRes = this.dispatchEventRes(new Event("proxy_requiredFeatureSet", false, new Class<?>[0], String.class, true)).getReturnValues();
+		for(Object o : featureSetRes){
+			if(o != null)
+				featureSet.addList((String) o);
+		}
+		this.dispatchEvent(new Event("proxy_featureInit", new Class<?>[] { FeatureSet.class }), featureSet);
+		Defaults.featureInit(this, featureSet);
 		this.dispatchEvent(ProxyEvents.INIT);
 
 		this.updateState(State.STARTING);
