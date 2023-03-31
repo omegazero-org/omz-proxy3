@@ -226,7 +226,7 @@ public final class ProxyRegistry {
 	}
 
 	void forEachClientManager(SpecificThrowingConsumer<IOException, ? super NetClientManager> callback) throws IOException {
-		for(NetClientManager cm : this.clientManagers.values()){
+		for(NetClientManager cm : new java.util.HashSet<>(this.clientManagers.values())){
 			callback.accept(cm);
 		}
 	}
