@@ -41,4 +41,6 @@ These may be passed as command line arguments as JVM arguments as follows: `-Dor
 | http.requestId.timeLength | int | The number of hex characters to use for the time part of `X-Request-ID` values. The value is padded with `"0"`'s. If this value is `0`, the number of characters is automatic (behavior before v3.6.2), if `-1`, the time part is disabled. | `0` | 3.7.1 |
 | http.requestId.timeBase | int64 | A number (milliseconds) to subtract from the absolute time value in `X-Request-ID` values. | `0` | 3.7.1 |
 | net.upstreamSocketErrorDebug | boolean | Whether log messages of upstream connection failures should be printed with log level *DEBUG* instead of *WARN*. Similar to [`org.omegazero.net.socketErrorDebug`](https://docs.omegazero.org/javadoc/omz-net-lib/org/omegazero/net/common/NetCommon.html#SOCKET_ERROR_DEBUG). | `false` | 3.6.1 |
+| clientImplNamespace | string | The namespace of default client manager IDs to use. | `"tcp.client"` | 3.10.1 |
+| serverImplNamespace | string | The namespace of server implementation names to use. | `"tcp.server"` | 3.10.1 |
 
