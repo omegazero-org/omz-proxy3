@@ -42,6 +42,7 @@ public class UpstreamServer implements java.io.Serializable {
 	private final int plainPort;
 	private final int securePort;
 	private final Collection<String> protocols;
+	private final String clientImplOverride;
 
 	private transient long addressExpiration;
 
@@ -66,7 +67,7 @@ public class UpstreamServer implements java.io.Serializable {
 	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
 	 */
 	public UpstreamServer(InetAddress address, int plainPort, int securePort) {
-		this(address, -1, plainPort, securePort, null);
+		this(address, -1, plainPort, securePort, null, null);
 	}
 
 	/**
@@ -79,7 +80,7 @@ public class UpstreamServer implements java.io.Serializable {
 	 * @since 3.3.1
 	 */
 	public UpstreamServer(InetAddress address, int plainPort, int securePort, Collection<String> protocols) {
-		this(address, -1, plainPort, securePort, protocols);
+		this(address, -1, plainPort, securePort, protocols, null);
 	}
 
 	/**
@@ -93,6 +94,21 @@ public class UpstreamServer implements java.io.Serializable {
 	 * @since 3.4.1
 	 */
 	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Collection<String> protocols) {
+		this(address, addressTTL, plainPort, securePort, protocols, null);
+	}
+
+	/**
+	 * Creates an {@code UpstreamServer} instance.
+	 *
+	 * @param address The address of the server
+	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL}
+	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
+	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
+	 * @param protocols The list of protocol names the server supports. If {@code null}, the {@linkplain #PROTOCOLS_DEFAULT default set} is used
+	 * @param clientImplOverride If not {@code null}, overrides the client manager namespace to use to connect to this server
+	 * @since 3.10.2
+	 */
+	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Collection<String> protocols, String clientImplOverride) {
 		this.address = address;
 		this.addressTTL = addressTTL;
 		this.plainPort = plainPort;
@@ -101,6 +117,7 @@ public class UpstreamServer implements java.io.Serializable {
 			this.protocols = Collections.unmodifiableCollection(protocols);
 		else
 			this.protocols = PROTOCOLS_DEFAULT;
+		this.clientImplOverride = clientImplOverride;
 
 		if(addressTTL >= 0)
 			this.addressExpiration = System.nanoTime() + addressTTL * 1000000000L;
@@ -190,6 +207,16 @@ public class UpstreamServer implements java.io.Serializable {
 	 */
 	public Collection<String> getSupportedProcotols(){
 		return this.protocols;
+	}
+
+	/**
+	 * Returns an override for the client manager namespace to use to connect to this server. If {@code null}, the default implementation should be used.
+	 *
+	 * @return ID of the client manager
+	 * @since 3.10.2
+	 */
+	public String getClientImplOverride(){
+		return this.clientImplOverride;
 	}
 
 	@Override

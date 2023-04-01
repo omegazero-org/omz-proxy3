@@ -241,7 +241,7 @@ public final class Proxy implements Application {
 
 		if(this.config.getUpstreamServerAddress() != null)
 			this.defaultUpstreamServer = new UpstreamServer(InetAddress.getByName(this.config.getUpstreamServerAddress()), this.config.getUpstreamServerAddressTTL(),
-					this.config.getUpstreamServerPortPlain(), this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols());
+					this.config.getUpstreamServerPortPlain(), this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols(), this.config.getUpstreamServerClientImplOverride());
 	}
 
 
@@ -504,7 +504,7 @@ public final class Proxy implements Application {
 		if(mgr == null)
 			throw new IllegalArgumentException("Invalid client manager id '" + cmid + "'");
 		SocketConnection conn = mgr.connection(parameters);
-		if(downstreamConnection != null)
+		if(conn instanceof org.omegazero.net.socket.AbstractSocketConnection && downstreamConnection instanceof org.omegazero.net.socket.AbstractSocketConnection)
 			((org.omegazero.net.socket.AbstractSocketConnection) conn).setWorker(((org.omegazero.net.socket.AbstractSocketConnection) downstreamConnection).getWorker());
 		return conn;
 	}

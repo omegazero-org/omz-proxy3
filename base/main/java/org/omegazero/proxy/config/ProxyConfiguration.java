@@ -75,6 +75,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private int upstreamServerPortTLS = 8443;
 	@ConfigurationOption
 	private Set<String> upstreamServerProtocols = null;
+	@ConfigurationOption
+	private String upstreamServerClientImplOverride = null;
 
 	@ConfigurationOption(description = "List of X509 certificate file names to trust in addition to the default installed certificates")
 	private List<String> trustedCertificates = Collections.emptyList();
@@ -259,6 +261,10 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public Set<String> getUpstreamServerProtocols() {
 		return this.upstreamServerProtocols;
+	}
+
+	public String getUpstreamServerClientImplOverride() {
+		return this.upstreamServerClientImplOverride;
 	}
 
 	public List<String> getTrustedCertificates() {
