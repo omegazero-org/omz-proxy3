@@ -16,6 +16,7 @@ import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
 
+import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.common.logging.Logger;
 
 /**
@@ -35,6 +36,14 @@ public class UpstreamServer implements java.io.Serializable {
 	 * An immutable collection representing support for all protocols.
 	 */
 	public static final Collection<String> PROTOCOLS_ALL = Collections.singleton(null);
+
+	/**
+	 * The amount of seconds to wait for a retry when an attempt to re-resolve an address, after its TTL expired, fails.
+	 * If {@code -1} (the default), the same as the (positive) TTL configured for an {@code UpstreamServer}.
+	 *
+	 * @since 3.10.3
+	 */
+	public static final int addressNegativeTTL = PropertyUtil.getInt("org.omegazero.proxy.addressNegativeTTL", -1);
 
 
 	private InetAddress address;
@@ -138,6 +147,12 @@ public class UpstreamServer implements java.io.Serializable {
 				logger.debug("Re-resolved address '", hostname, "': ", this.address.getHostAddress());
 		}catch(UnknownHostException e){
 			logger.warn("Error while re-resolving address '", hostname, "', using existing address: ", e.toString());
+			int nttl;
+			if(addressNegativeTTL >= 0)
+				nttl = addressNegativeTTL;
+			else
+				nttl = this.addressTTL;
+			this.addressExpiration = time + nttl * 1000000000L;
 		}
 	}
 
