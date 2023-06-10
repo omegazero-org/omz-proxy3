@@ -43,4 +43,5 @@ These may be passed as command line arguments as JVM arguments as follows: `-Dor
 | net.upstreamSocketErrorDebug | boolean | Whether log messages of upstream connection failures should be printed with log level *DEBUG* instead of *WARN*. Similar to [`org.omegazero.net.socketErrorDebug`](https://docs.omegazero.org/javadoc/omz-net-lib/org/omegazero/net/common/NetCommon.html#SOCKET_ERROR_DEBUG). | `false` | 3.6.1 |
 | clientImplNamespace | string | The namespace of default client manager IDs to use. | `"tcp.client"` | 3.10.1 |
 | serverImplNamespace | string | The namespace of server implementation names to use. | `"tcp.server"` | 3.10.1 |
+| addressNegativeTTL | number | The amount of seconds to wait for a retry when an attempt to re-resolve an address, after its TTL expired, fails. If `-1`, the same as the (positive) TTL configured for an `UpstreamServer`. | `-1` | 3.10.3 |
 
