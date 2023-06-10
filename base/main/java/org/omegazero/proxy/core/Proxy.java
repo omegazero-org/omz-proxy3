@@ -714,12 +714,12 @@ public final class Proxy implements Application {
 	}
 
 	/**
-	 * Returns the amount of time in milliseconds a connection with no traffic should persist before it is closed.
+	 * Returns the amount of time in seconds a connection with no traffic should persist before it is closed.
 	 * 
-	 * @return The time in milliseconds
+	 * @return The time in seconds
 	 */
 	public int getConnectionIdleTimeout() {
-		return this.config.getConnectionIdleTimeout() * 1000;
+		return this.config.getConnectionIdleTimeout();
 	}
 
 	/**
