@@ -82,7 +82,7 @@ public class ProxyConfiguration extends JSONConfiguration {
 	private List<String> trustedCertificates = Collections.emptyList();
 
 	@ConfigurationOption
-	private int workerThreadCount = -1;
+	private int workerThreadCount = -2;
 
 	@ConfigurationOption
 	private Map<String, ConfigObject> pluginConfig = new HashMap<>();
