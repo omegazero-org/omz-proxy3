@@ -21,6 +21,7 @@ public class ProxyMain {
 
 	public static void main(String[] pargs) {
 		propertyRenamed("org.omegazero.proxy.shutdownTimeout", "org.omegazero.common.runtime.shutdownTimeout");
+		System.setProperty("org.omegazero.common.event.taskWorker", "org.omegazero.proxy.core.Proxy::getServerWorker()");
 
 		ApplicationWrapper.init(Proxy::new);
 		ApplicationWrapper.start(pargs);

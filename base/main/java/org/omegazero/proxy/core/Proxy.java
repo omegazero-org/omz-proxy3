@@ -27,6 +27,8 @@ import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
 
 import org.omegazero.common.config.ConfigObject;
+import org.omegazero.common.event.DeferringTaskQueueExecutor;
+import org.omegazero.common.event.DelegatingTaskQueueExecutor;
 import org.omegazero.common.event.TaskQueueExecutor;
 import org.omegazero.common.event.Tasks;
 import org.omegazero.common.eventbus.Event;
@@ -86,7 +88,7 @@ public final class Proxy implements Application {
 	private SSLContext sslContext;
 	private Object tlsDataReloadInterval;
 
-	private TaskQueueExecutor serverWorker;
+	private DelegatingTaskQueueExecutor serverWorker = new DelegatingTaskQueueExecutor(new DeferringTaskQueueExecutor());
 	private ApplicationWorkerProvider serverWorkerProvider;
 
 	private UpstreamServer defaultUpstreamServer;
@@ -157,11 +159,12 @@ public final class Proxy implements Application {
 
 		int wtc = this.config.getWorkerThreadCount();
 		logger.info("Setting up worker threads (configured max: ", wtc, ")");
-		this.serverWorker = TaskQueueExecutor.fromSequential().name("Worker").workerThreads(wtc).build();
 		this.serverWorker.setErrorHandler((e) -> {
 			logger.fatal("Error in server worker: ", e);
 			Proxy.this.shutdown();
 		});
+		TaskQueueExecutor actualWorker = TaskQueueExecutor.fromSequential().name("Worker").workerThreads(wtc).build();
+		((DeferringTaskQueueExecutor) this.serverWorker.getDelegate()).replaceFor(this.serverWorker, actualWorker);
 
 		this.serverWorkerProvider = new ApplicationWorkerProvider();
 
@@ -778,6 +781,18 @@ public final class Proxy implements Application {
 		return VERSION;
 	}
 
+	/**
+	 * Returns the {@code TaskQueueExecutor} used to execute asynchronous tasks.
+	 * <p>
+	 * Plugins and other external components SHOULD NOT use this method to queue asynchronous tasks, but use Proxy.{@link #getInstance()}.{@link #getServerWorkerProvider()} instead.
+	 *
+	 * @return The {@code TaskQueueExecutor}
+	 * @since 3.10.3
+	 */
+	public static DelegatingTaskQueueExecutor getServerWorker() {
+		return getInstance().serverWorker;
+	}
+
 
 	private void updateState(State newState) {
 		if(newState.value() < this.state.value())
@@ -831,7 +846,8 @@ public final class Proxy implements Application {
 		private final TaskQueueExecutor.Handle handle;
 
 		private SessionWorkerProvider() {
-			this.handle = Proxy.this.serverWorker.newHandle();
+			Proxy.this.requireStateMin(State.STARTING);
+			this.handle = ((TaskQueueExecutor) Proxy.this.serverWorker.getDelegate()).newHandle();
 		}
 
 		@Override
