@@ -19,6 +19,7 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerPortPlain | number | The port number where the default upstream server is listening for plaintext connections. | no | `8080` | 3.1.0 |
 | upstreamServerPortTLS | number | The port number where the default upstream server is listening for TLS connections. | no | `8443` | 3.1.0 |
 | upstreamServerProtocols | array(string) | A list of protocol names the default upstream server supports. The list of supported protocols is checked by the running HTTP engine and a specific protocol name is usually also defined by it. | no | `["http/1.1"]` | 3.3.1 |
+| upstreamServerClientImplOverride | string | An override for the client manager IDs to use to connect to the server (overrides the `.clientImplNamespace` system property). | no | none | 3.10.2 |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | (empty) | 3.1.0 |
 | workerThreadCount | number | The maximum number of worker threads. A negative value sets the maximum worker thread count to the number of available processors. | no | `-1` | 3.7.1 |
 | pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omegazero/omz-proxy3-plugins) for more information. | no | (empty) | 3.1.0 |
