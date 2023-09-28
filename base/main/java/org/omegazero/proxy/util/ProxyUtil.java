@@ -11,6 +11,8 @@
  */
 package org.omegazero.proxy.util;
 
+import java.io.IOException;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 
 import org.omegazero.common.util.PropertyUtil;
@@ -150,12 +152,12 @@ public class ProxyUtil {
 	 * @param userver The upstream server to connect to
 	 * @param alpn The protocols to advertise using TLS ALPN
 	 * @return The new connection
-	 * @throws java.io.IOException If an IO error occurred
+	 * @throws IOException If an IO error occurred
 	 * @since 3.3.1
 	 * @deprecated Since 3.7.1, use {@link #connectUpstreamTCP(Proxy, SocketConnection, boolean, UpstreamServer, String...)} to pass the client connection
 	 */
 	@Deprecated
-	public static SocketConnection connectUpstreamTCP(Proxy proxy, boolean downstreamSecurity, UpstreamServer userver, String... alpn) throws java.io.IOException {
+	public static SocketConnection connectUpstreamTCP(Proxy proxy, boolean downstreamSecurity, UpstreamServer userver, String... alpn) throws IOException {
 		return connectUpstreamTCP(proxy, null, downstreamSecurity, userver, alpn);
 	}
 
@@ -168,25 +170,36 @@ public class ProxyUtil {
 	 * @param userver The upstream server to connect to
 	 * @param alpn The protocols to advertise using TLS ALPN
 	 * @return The new connection
-	 * @throws java.io.IOException If an IO error occurred
+	 * @throws IOException If an IO error occurred
 	 * @since 3.7.1
 	 * @see Proxy#connection(String, ConnectionParameters, SocketConnection)
 	 */
 	public static SocketConnection connectUpstreamTCP(Proxy proxy, SocketConnection downstreamConnection, boolean downstreamSecurity, UpstreamServer userver, String... alpn)
-			throws java.io.IOException {
+			throws IOException {
 		String cmidNs = userver.getClientImplOverride() != null ? userver.getClientImplOverride() : clientImplNamespace;
 		String type;
 		ConnectionParameters params;
+		InetAddress remoteAddress = userver.getAddress();
+		InetAddress localAddress = userver.getLocalAddress();
+		if(localAddress == null){
+			if(remoteAddress instanceof java.net.Inet4Address)
+				localAddress = proxy.getConfig().getDefaultOutboundLocalAddressV4();
+			else if(remoteAddress instanceof java.net.Inet6Address)
+				localAddress = proxy.getConfig().getDefaultOutboundLocalAddressV6();
+			else
+				throw new IOException("Unknown address type of address: " + remoteAddress);
+		}
+		InetSocketAddress localSocketAddress = new InetSocketAddress(localAddress, 0);
 		if((downstreamSecurity || userver.getPlainPort() <= 0) && userver.getSecurePort() > 0){
 			type = cmidNs + ".tls";
-			params = new TLSConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getSecurePort()));
+			params = new TLSConnectionParameters(new InetSocketAddress(remoteAddress, userver.getSecurePort()), localSocketAddress);
 			((TLSConnectionParameters) params).setAlpnNames(alpn);
-			((TLSConnectionParameters) params).setSniOptions(new String[] { userver.getAddress().getHostName() });
+			((TLSConnectionParameters) params).setSniOptions(new String[] { remoteAddress.getHostName() });
 		}else if(userver.getPlainPort() > 0){
 			type = cmidNs + ".plain";
-			params = new ConnectionParameters(new InetSocketAddress(userver.getAddress(), userver.getPlainPort()));
+			params = new ConnectionParameters(new InetSocketAddress(remoteAddress, userver.getPlainPort()), localSocketAddress);
 		}else
-			throw new RuntimeException("Upstream server " + userver.getAddress() + " neither has a plain nor a secure port set");
+			throw new IOException("Upstream server " + remoteAddress + " neither has a plain nor a secure port set");
 
 		return proxy.connection(type, params, downstreamConnection);
 	}

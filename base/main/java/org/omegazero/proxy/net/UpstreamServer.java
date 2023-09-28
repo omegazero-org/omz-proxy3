@@ -48,6 +48,7 @@ public class UpstreamServer implements java.io.Serializable {
 
 	private InetAddress address;
 	private final int addressTTL;
+	private InetAddress localAddress;
 	private final int plainPort;
 	private final int securePort;
 	private final Collection<String> protocols;
@@ -96,7 +97,7 @@ public class UpstreamServer implements java.io.Serializable {
 	 * Creates an {@code UpstreamServer} instance.
 	 *
 	 * @param address The address of the server
-	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL}
+	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL()}
 	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
 	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
 	 * @param protocols The list of protocol names the server supports. If {@code null}, the {@linkplain #PROTOCOLS_DEFAULT default set} is used
@@ -110,16 +111,36 @@ public class UpstreamServer implements java.io.Serializable {
 	 * Creates an {@code UpstreamServer} instance.
 	 *
 	 * @param address The address of the server
-	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL}
+	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL()}
 	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
 	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
 	 * @param protocols The list of protocol names the server supports. If {@code null}, the {@linkplain #PROTOCOLS_DEFAULT default set} is used
 	 * @param clientImplOverride If not {@code null}, overrides the client manager namespace to use to connect to this server
 	 * @since 3.10.2
 	 */
-	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Collection<String> protocols, String clientImplOverride) {
+	public UpstreamServer(InetAddress address, int addressTTL, int plainPort, int securePort, Collection<String> protocols, String clientImplOverride){
+		this(address, addressTTL, null, plainPort, securePort, protocols, clientImplOverride);
+	}
+
+	/**
+	 * Creates an {@code UpstreamServer} instance.
+	 *
+	 * @param address The address of the server
+	 * @param addressTTL The time in seconds to cache a resolved address. See {@link #getAddressTTL()}
+	 * @param localAddress The local address to use to connect to the server
+	 * @param plainPort The port on which the server listens for plaintext connections. {@code -1} means there is no such port
+	 * @param securePort The port on which the server listens for encrypted connections. {@code -1} means there is no such port
+	 * @param protocols The list of protocol names the server supports. If {@code null}, the {@linkplain #PROTOCOLS_DEFAULT default set} is used
+	 * @param clientImplOverride If not {@code null}, overrides the client manager namespace to use to connect to this server
+	 * @throws IllegalArgumentException If {@code address} and {@code localAddress} are both given but they do not have the same type
+	 * @since 3.10.4
+	 */
+	public UpstreamServer(InetAddress address, int addressTTL, InetAddress localAddress, int plainPort, int securePort, Collection<String> protocols, String clientImplOverride) {
+		if(address != null && localAddress != null && !address.getClass().equals(localAddress.getClass()))
+			throw new IllegalArgumentException("address and localAddress must have the same type");
 		this.address = address;
 		this.addressTTL = addressTTL;
+		this.localAddress = localAddress;
 		this.plainPort = plainPort;
 		this.securePort = securePort;
 		if(protocols != null)
@@ -161,9 +182,8 @@ public class UpstreamServer implements java.io.Serializable {
 	 * Returns the address of this <code>UpstreamServer</code>. May be {@code null}.
 	 * <p>
 	 * If {@code addressTTL} was set in the constructor, this method may re-resolve the configured {@code address} if necessary.
-	 * 
+	 *
 	 * @return The address of this <code>UpstreamServer</code>
-	 * @throws NullPointerException If no {@code address} was passed in the constructor
 	 */
 	public InetAddress getAddress() {
 		if(this.address != null)
@@ -172,8 +192,20 @@ public class UpstreamServer implements java.io.Serializable {
 	}
 
 	/**
+	 * Returns the local address of this <code>UpstreamServer</code>. May be {@code null}.
+	 *
+	 * @return The local address to use to connect to this <code>UpstreamServer</code>
+	 * @since 3.10.4
+	 */
+	public InetAddress getLocalAddress() {
+		return this.localAddress;
+	}
+
+	/**
 	 * Returns the number of seconds to cache a resolved {@code InetAddress}. After this time expires, the address is re-resolved using {@link InetAddress#getByName}. {@code -1} means
 	 * there is no timeout. Note that the {@code InetAddress} implementation may also cache name resolutions internally (see {@link InetAddress}).
+	 * <p>
+	 * This only applies to the remote address.
 	 *
 	 * @return The address TTL in seconds
 	 */

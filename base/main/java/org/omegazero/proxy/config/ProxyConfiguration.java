@@ -34,6 +34,7 @@ import org.omegazero.common.config.JSONConfiguration;
 import org.omegazero.common.logging.Logger;
 import org.omegazero.common.logging.LoggerUtil;
 import org.omegazero.net.util.SSLUtil;
+import org.omegazero.proxy.net.UpstreamServer;
 
 public class ProxyConfiguration extends JSONConfiguration {
 
@@ -65,10 +66,17 @@ public class ProxyConfiguration extends JSONConfiguration {
 	@ConfigurationOption(description = "The default error documents to use to signal an error. The key is the content type, the value is the file path")
 	private final Map<String, String> errdocFiles = new HashMap<>();
 
+	@ConfigurationOption
+	private java.net.Inet4Address defaultOutboundLocalAddressV4 = null;
+	@ConfigurationOption
+	private java.net.Inet6Address defaultOutboundLocalAddressV6 = null;
+
 	@ConfigurationOption(description = "The address of the default upstream server")
 	private String upstreamServerAddress = "localhost";
 	@ConfigurationOption
 	private int upstreamServerAddressTTL = -1;
+	@ConfigurationOption
+	private String upstreamServerLocalAddress = null;
 	@ConfigurationOption(description = "The plaintext port of the upstream server")
 	private int upstreamServerPortPlain = 8080;
 	@ConfigurationOption(description = "The TLS port of the upstream server")
@@ -198,6 +206,18 @@ public class ProxyConfiguration extends JSONConfiguration {
 				}else
 					throw new IllegalArgumentException("Values in 'bindAddresses' must be strings");
 			});
+		}else if(field.getName().equals("defaultOutboundLocalAddressV4")){
+			try{
+				this.defaultOutboundLocalAddressV4 = (java.net.Inet4Address) InetAddress.getByName((String) jsonObject);
+			}catch(Exception e){
+				throw new IllegalArgumentException("Invalid outbound local address '" + jsonObject + "': " + e);
+			}
+		}else if(field.getName().equals("defaultOutboundLocalAddressV6")){
+			try{
+				this.defaultOutboundLocalAddressV6 = (java.net.Inet6Address) InetAddress.getByName((String) jsonObject);
+			}catch(Exception e){
+				throw new IllegalArgumentException("Invalid outbound local address '" + jsonObject + "': " + e);
+			}
 		}else
 			return false;
 		return true;
@@ -243,28 +263,21 @@ public class ProxyConfiguration extends JSONConfiguration {
 		return this.errdocFiles;
 	}
 
-	public String getUpstreamServerAddress() {
-		return this.upstreamServerAddress;
+	public java.net.Inet4Address getDefaultOutboundLocalAddressV4(){
+		return this.defaultOutboundLocalAddressV4;
 	}
 
-	public int getUpstreamServerAddressTTL() {
-		return this.upstreamServerAddressTTL;
+	public java.net.Inet6Address getDefaultOutboundLocalAddressV6(){
+		return this.defaultOutboundLocalAddressV6;
 	}
 
-	public int getUpstreamServerPortPlain() {
-		return this.upstreamServerPortPlain;
-	}
-
-	public int getUpstreamServerPortTLS() {
-		return this.upstreamServerPortTLS;
-	}
-
-	public Set<String> getUpstreamServerProtocols() {
-		return this.upstreamServerProtocols;
-	}
-
-	public String getUpstreamServerClientImplOverride() {
-		return this.upstreamServerClientImplOverride;
+	public UpstreamServer createDefaultUpstreamServerInstance() throws IOException {
+		if(this.upstreamServerAddress != null){
+			return new UpstreamServer(InetAddress.getByName(this.upstreamServerAddress), this.upstreamServerAddressTTL,
+					this.upstreamServerLocalAddress != null ? InetAddress.getByName(this.upstreamServerLocalAddress) : null,
+					this.upstreamServerPortPlain, this.upstreamServerPortTLS, this.upstreamServerProtocols, this.upstreamServerClientImplOverride);
+		}else
+			return null;
 	}
 
 	public List<String> getTrustedCertificates() {

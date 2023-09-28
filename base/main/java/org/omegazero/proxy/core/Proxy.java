@@ -242,9 +242,7 @@ public final class Proxy implements Application {
 			}, this.config.getTlsAuthReloadInterval() * 1000).daemon();
 		}
 
-		if(this.config.getUpstreamServerAddress() != null)
-			this.defaultUpstreamServer = new UpstreamServer(InetAddress.getByName(this.config.getUpstreamServerAddress()), this.config.getUpstreamServerAddressTTL(),
-					this.config.getUpstreamServerPortPlain(), this.config.getUpstreamServerPortTLS(), this.config.getUpstreamServerProtocols(), this.config.getUpstreamServerClientImplOverride());
+		this.defaultUpstreamServer = this.config.createDefaultUpstreamServerInstance();
 	}
 
 
