@@ -154,6 +154,11 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 	@Override
 	public void respond(HTTPRequest request, HTTPResponseData responsedata){
+		if(request != null){
+			HTTPClient uclient = (HTTPClient) request.getAttachment(ATTACHMENT_KEY_USERVER_CLIENT);
+			this.proxy.dispatchEvent(ProxyEvents.HTTP_RESPONSE_LOCAL, this.downstreamConnection, uclient != null ? ((SocketConnectionWritable) uclient.getConnection()).getConnection() : null,
+					responsedata, (UpstreamServer) request.getAttachment(ATTACHMENT_KEY_UPSTREAM_SERVER));
+		}
 		this.httpServer.respond(request, responsedata);
 		if(request != null){
 			if(request.hasAttachment(ATTACHMENT_KEY_RESPONSE_TIMEOUT))
@@ -618,7 +623,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 	private void receiveNewRequest(HTTPServerStream req){
 		HTTPClientStream ureq = this.setupRequestStream(req);
 		if(ureq != null){
-			this.setupResponseStream(req, ureq, ((org.omegazero.http.netutil.SocketConnectionWritable) ureq.getClient().getConnection()).getConnection());
+			this.setupResponseStream(req, ureq, ((SocketConnectionWritable) ureq.getClient().getConnection()).getConnection());
 			ureq.startRequest();
 		}
 	}

@@ -49,6 +49,8 @@ public final class ProxyEvents {
 	public static final Event HTTP_REQUEST_TIMEOUT = new Event("onHTTPRequestTimeout", new Class<?>[] { SocketConnection.class, ProxyHTTPRequest.class }); // since 3.6.1
 	public static final Event HTTP_RESPONSE = new Event("onHTTPResponse",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, ProxyHTTPResponse.class, UpstreamServer.class });
+	public static final Event HTTP_RESPONSE_LOCAL = new Event("onHTTPResponseLocal",
+			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPResponseData.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_DATA = new Event("onHTTPResponseData",
 			new Class<?>[] { SocketConnection.class, SocketConnection.class, HTTPResponseData.class, UpstreamServer.class });
 	public static final Event HTTP_RESPONSE_TRAILERS = new Event("onHTTPResponseTrailers",
