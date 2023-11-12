@@ -347,6 +347,8 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			if(e instanceof org.omegazero.common.event.task.ExecutionFailedException)
 				e = e.getCause();
 			try{
+				if(logger.debug())
+					logger.trace(uconn.getAttachment(CONNDBG), " Connection error (pre msg): ", e.toString());
 				this.proxy.dispatchEvent(ProxyEvents.UPSTREAM_CONNECTION_ERROR, uconn, e);
 			}catch(Exception ue){
 				e.addSuppressed(ue);
