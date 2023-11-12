@@ -67,7 +67,10 @@ class Defaults {
 		if(featureSet.containsFeature("tcp.client.tls")){
 			try{
 				SSLContext clientSslContext = SSLContext.getInstance("TLS");
-				clientSslContext.init(null, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates()), null);
+				if(config.isTrustAllCertificates())
+					clientSslContext.init(null, TrustManagerUtil.getTrustAllManager(), null);
+				else
+					clientSslContext.init(null, TrustManagerUtil.getTrustManagersWithAdditionalCertificateFiles(config.getTrustedCertificates()), null);
 				proxy.getRegistry().registerClientManager("tcp.client.tls", NetworkApplicationBuilder.newClientManager("nio").sslContext(clientSslContext).build());
 			}catch(GeneralSecurityException | IOException e){
 				throw new RuntimeException("Error while loading trusted certificates", e);

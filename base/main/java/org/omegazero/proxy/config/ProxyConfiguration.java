@@ -88,6 +88,8 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	@ConfigurationOption(description = "List of X509 certificate file names to trust in addition to the default installed certificates")
 	private List<String> trustedCertificates = Collections.emptyList();
+	@ConfigurationOption
+	private boolean trustAllCertificates = false;
 
 	@ConfigurationOption
 	private int workerThreadCount = -2;
@@ -282,6 +284,10 @@ public class ProxyConfiguration extends JSONConfiguration {
 
 	public List<String> getTrustedCertificates() {
 		return this.trustedCertificates;
+	}
+
+	public boolean isTrustAllCertificates() {
+		return this.trustAllCertificates;
 	}
 
 	public int getWorkerThreadCount() {
