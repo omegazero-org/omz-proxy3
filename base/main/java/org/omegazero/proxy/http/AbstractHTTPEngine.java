@@ -72,6 +72,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 	protected final String downstreamConnectionDbgstr;
 	protected final boolean disablePromiseRequestLog;
+	protected final boolean duplexClose;
 
 	protected boolean downstreamClosed;
 
@@ -94,6 +95,7 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 
 		this.downstreamConnectionDbgstr = this.proxy.debugStringForConnection(this.downstreamConnection, null);
 		this.disablePromiseRequestLog = config.optBoolean("disablePromiseRequestLog", config.isDisableDefaultRequestLog());
+		this.duplexClose = config.optBoolean("duplexClose", false);
 
 		if(logger.debug())
 			logger.debug(this.downstreamConnectionDbgstr, " Using ", this.httpServer.getClass().getName(), " for this connection");
@@ -370,6 +372,9 @@ public abstract class AbstractHTTPEngine implements HTTPEngine, HTTPEngineRespon
 			clientset.remove(client);
 			if(clientset.isEmpty())
 				this.upstreamClients.remove(userver);
+
+			if(this.duplexClose)
+				this.close();
 		});
 		uconn.on("data", (byte[] data) -> {
 			if(this.switchedProtocolUpstreamConnection == uconn){
