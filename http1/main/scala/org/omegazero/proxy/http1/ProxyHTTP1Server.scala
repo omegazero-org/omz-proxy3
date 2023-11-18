@@ -106,7 +106,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 			return;
 
 		if(!response.headerExists("connection"))
-			response.setHeader("connection", "close");
+			response.setHeader("connection", "keep-alive");
 		response.deleteHeader("transfer-encoding");
 
 		var data = HTTPCommon.prepareHTTPResponse(request, response, responsedata.getData());
