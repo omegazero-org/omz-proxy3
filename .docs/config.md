@@ -24,6 +24,7 @@ The JSON root element must be an object and can have any of the following proper
 | upstreamServerProtocols | array(string) | A list of protocol names the default upstream server supports. The list of supported protocols is checked by the running HTTP engine and a specific protocol name is usually also defined by it. | no | `["http/1.1"]` | 3.3.1 |
 | upstreamServerClientImplOverride | string | An override for the client manager IDs to use to connect to the server (overrides the `.clientImplNamespace` system property). | no | none | 3.10.2 |
 | trustedCertificates | array(string) | List of file paths of CA certificates to trust when making outgoing TLS connections. | no | (empty) | 3.1.0 |
+| trustAllCertificates | boolean | Set to `true` to trust all certificates when connecting to upstream servers. Use this option with care. | no | `false` | 3.10.5 |
 | workerThreadCount | number | The maximum number of worker threads. A negative value sets the maximum worker thread count to the number of available processors. | no | `-1` | 3.7.1 |
 | pluginConfig | object | Contains plugin configuration objects. See [omz-proxy3-plugins](https://git.omegazero.org/omegazero/omz-proxy3-plugins) for more information. | no | (empty) | 3.1.0 |
 | engineConfig | object | Contains configuration objects passed to the specified HTTP engine. The key of each object in this object is the name of the HTTP engine to pass the object to; this may either be the fully qualified class name or only the class name. | no | (empty) | 3.3.1 |
@@ -42,6 +43,7 @@ This is a list of common properties for the default or a specific HTTP engine co
 | requestTimeout | number | The maximum time in seconds to wait for a request to finish before responding with status 408. | no | `5` | 3.6.1 |
 | responseTimeout | number | The maximum time in seconds to wait for a response from an upstream server before responding with status 504. This must not equal `upstreamConnectionTimeout`, because it would cause undefined behavior. | no | `60` | 3.6.1 |
 | maxStreamsPerServer | number | The maximum number of concurrent active requests (streams) to an upstream server for a single client. In HTTP/2, this is the sum of the *MAX_CONCURRENT_STREAMS* setting of all open connections; in HTTP/1.1, this is the number of connections (since HTTP/1.1 only supports a single concurrent request per connection). If the value is exceeded, no new connections will be created. | `100` | 3.10.1 |
+| duplexClose | boolean | (advanced) Set to `true` to forcibly close downstream connection when an upstream connection closes. | no | `false` | 3.10.5 |
 
 ### Example
 
