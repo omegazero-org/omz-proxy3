@@ -109,7 +109,6 @@ public class ProxyUtil {
 			if(reset){
 				if(lastbranch >= 0){
 					exprindex = lastbranch;
-					hnindex++;
 				}else
 					return false;
 				reset = false;
