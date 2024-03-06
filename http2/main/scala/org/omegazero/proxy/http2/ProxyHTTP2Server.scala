@@ -43,8 +43,8 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 
 	private val disablePromiseRequestLog = config.optBoolean("disablePromiseRequestLog", config.isDisableDefaultRequestLog());
 
-	private var onNewRequest: Option[Consumer[HTTPServerStream]] = None;
-	var onError: Option[(HTTPRequest, Int, String) => Unit] = None;
+	private var onNewRequest: Consumer[HTTPServerStream] = null;
+	var onError: (HTTPRequest, Int, String) => Unit = null;
 
 	private var prefaceReceived = false;
 	private var nextStreamId = 2;
@@ -130,7 +130,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 	override def isServerPushEnabled(): Boolean = this.getControlStream().getRemoteSettings().get(HTTP2Constants.SETTINGS_ENABLE_PUSH) == 1;
 
 
-	override def onNewRequest(callback: Consumer[HTTPServerStream]): Unit = this.onNewRequest = Some(callback);
+	override def onNewRequest(callback: Consumer[HTTPServerStream]): Unit = this.onNewRequest = callback;
 
 	override def getActiveRequests(): Collection[HTTPServerStream] = Collections.unmodifiableCollection(this.requestStreams.values());
 
@@ -156,7 +156,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 				reqstream.startResponse(response);
 				reqstream.sendResponseData(data, true);
 			}else
-				reqstream.pendingResponse = Some(new HTTPResponseData(response, data));
+				reqstream.pendingResponse = new HTTPResponseData(response, data);
 		}
 	}
 
@@ -186,7 +186,7 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 
 		this.requestStreams.put(clientStream.getStreamId(), reqstream);
 
-		this.onNewRequest.get.accept(reqstream);
+		this.onNewRequest.accept(reqstream);
 		if(endStream)
 			reqstream.callOnRequestEnded(null);
 	}
@@ -200,16 +200,16 @@ class ProxyHTTP2Server(private val dsConnection: SocketConnection, private val c
 
 	class IncomingRequestStream(request: HTTPRequest, val clientStream: MessageStream) extends AbstractHTTPServerStream(request, ProxyHTTP2Server.this) {
 
-		var pendingResponse: Option[HTTPResponseData] = None;
+		var pendingResponse: HTTPResponseData = null;
 		var requestEnded = false;
 
 
 		override def callOnRequestEnded(trailers: HTTPMessageTrailers) = {
 			super.callOnRequestEnded(trailers);
 			this.requestEnded = true;
-			if(this.pendingResponse.isDefined && this.clientStream.isExpectingResponse()){
-				this.startResponse(this.pendingResponse.get.getHttpMessage());
-				this.sendResponseData(this.pendingResponse.get.getData(), true);
+			if(this.pendingResponse != null && this.clientStream.isExpectingResponse()){
+				this.startResponse(this.pendingResponse.getHttpMessage());
+				this.sendResponseData(this.pendingResponse.getData(), true);
 			}
 		}
 

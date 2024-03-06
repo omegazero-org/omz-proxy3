@@ -38,19 +38,19 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 	private val connectionWS: WritableSocket = new SocketConnectionWritable(this.connection);
 	private val remoteName = this.connectionWS.getRemoteName();
 
-	private var onNewRequest: Option[Consumer[HTTPServerStream]] = None;
-	var onError: Option[(HTTPRequest, Int, String) => Unit] = None;
+	private var onNewRequest: Consumer[HTTPServerStream] = null;
+	var onError: (HTTPRequest, Int, String) => Unit = null;
 
 	private val transmitter = new HTTP1MessageTransmitter(this.connectionWS);
 	private val requestReceiver = new HTTP1RequestReceiver(this.config.getMaxHeaderSize(), this.connection.isInstanceOf[org.omegazero.net.socket.TLSConnection]);
 
 	private var currentRequestTimeoutRef: Object = null;
-	private var currentRequestStream: Option[IncomingRequestStream] = None;
-	private def currentRequestOrNull = if this.currentRequestStream.isDefined then this.currentRequestStream.get.getRequest() else null;
+	private var currentRequestStream: IncomingRequestStream = null;
+	private def currentRequestOrNull = if this.currentRequestStream != null then this.currentRequestStream.getRequest() else null;
 
 	this.connection.on("writable", () => {
-		if(this.currentRequestStream.isDefined)
-			this.currentRequestStream.get.callOnWritable();
+		if(this.currentRequestStream != null)
+			this.currentRequestStream.callOnWritable();
 	});
 
 
@@ -61,13 +61,13 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 			case e: InvalidHTTPMessageException => {
 				if(logger.debug())
 					logger.debug(this.remoteName, " HTTP error: ", if NetCommon.PRINT_STACK_TRACES then e else e.toString());
-				this.onError.get (this.currentRequestOrNull, HTTPStatus.STATUS_BAD_REQUEST, if e.isMsgUserVisible() then e.getMessage() else HTTPCommon.MSG_BAD_REQUEST);
-				if(this.currentRequestStream.isDefined)
-					this.currentRequestStream.get.callOnError(e);
+				this.onError(this.currentRequestOrNull, HTTPStatus.STATUS_BAD_REQUEST, if e.isMsgUserVisible() then e.getMessage() else HTTPCommon.MSG_BAD_REQUEST);
+				if(this.currentRequestStream != null)
+					this.currentRequestStream.callOnError(e);
 			}
 			case e: Exception => {
-				if(this.currentRequestStream.isDefined && !this.currentRequestStream.get.isClosed()){
-					this.onError.get (this.currentRequestOrNull, HTTPStatus.STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
+				if(this.currentRequestStream != null && !this.currentRequestStream.isClosed()){
+					this.onError(this.currentRequestOrNull, HTTPStatus.STATUS_INTERNAL_SERVER_ERROR, HTTPCommon.MSG_SERVER_ERROR);
 					logger.error(this.remoteName, " Error processing packet: ", e);
 				}else
 					throw e;
@@ -79,15 +79,15 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 	
 	override def close(): Unit = {
 		this.connection.destroy();
-		if(this.currentRequestStream.isDefined)
-			this.currentRequestStream.get.close();
+		if(this.currentRequestStream != null)
+			this.currentRequestStream.close();
 	}
 
 
-	override def onNewRequest(callback: Consumer[HTTPServerStream]): Unit = this.onNewRequest = Some(callback);
+	override def onNewRequest(callback: Consumer[HTTPServerStream]): Unit = this.onNewRequest = callback;
 
 	override def getActiveRequests(): Collection[HTTPServerStream] =
-		if this.currentRequestStream.isDefined then Collections.singleton(this.currentRequestStream.get) else Collections.emptySet();
+		if this.currentRequestStream != null then Collections.singleton(this.currentRequestStream) else Collections.emptySet();
 
 
 	override def respond(request: HTTPRequest, responsedata: HTTPResponseData): Unit = {
@@ -112,11 +112,11 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 		var data = HTTPCommon.prepareHTTPResponse(request, response, responsedata.getData());
 		if(request != null){
 			request.synchronized {
-				if(this.currentRequestStream.get.requestEnded){ // request incl data fully received
-					this.currentRequestStream.get.startResponse(response);
-					this.currentRequestStream.get.sendResponseData(data, true);
+				if(this.currentRequestStream.requestEnded){ // request incl data fully received
+					this.currentRequestStream.startResponse(response);
+					this.currentRequestStream.sendResponseData(data, true);
 				}else
-					this.currentRequestStream.get.pendingResponse = Some(new HTTPResponseData(response, data));
+					this.currentRequestStream.pendingResponse = new HTTPResponseData(response, data);
 			}
 		}else{
 			if(this.writeHTTPMsg(response))
@@ -130,7 +130,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 
 	private def processData(data: Array[Byte]): Unit = {
 		var remainingData = data;
-		if(this.currentRequestStream.isEmpty){
+		if(this.currentRequestStream == null){
 			if(this.currentRequestTimeoutRef == null)
 				this.currentRequestTimeoutRef = Tasks.I.timeout(this.handleRequestTimeout _, this.config.getRequestTimeout()).daemon();
 			var offset = this.requestReceiver.receive(remainingData, 0);
@@ -147,7 +147,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 
 			var reqstream = new IncomingRequestStream(request);
 			reqstream.setReceiveData(true);
-			this.currentRequestStream = Some(reqstream);
+			this.currentRequestStream = reqstream;
 
 			var dechunker = new MessageBodyDechunker(request, (reqdata) => {
 				var last = reqdata.length == 0;
@@ -155,19 +155,19 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 				if(last){
 					reqstream.callOnRequestEnded(null);
 					request.setAttachment(ProxyHTTP1Server.ATTACHMENT_KEY_DECHUNKER, null);
-					if(reqstream.pendingResponse.isDefined){
-						reqstream.startResponse(reqstream.pendingResponse.get.getHttpMessage());
-						reqstream.sendResponseData(reqstream.pendingResponse.get.getData(), true);
+					if(reqstream.pendingResponse != null){
+						reqstream.startResponse(reqstream.pendingResponse.getHttpMessage());
+						reqstream.sendResponseData(reqstream.pendingResponse.getData(), true);
 					}
 				}
 			});
 			request.setAttachment(ProxyHTTP1Server.ATTACHMENT_KEY_DECHUNKER, dechunker);
 
-			this.onNewRequest.get.accept(reqstream);
+			this.onNewRequest.accept(reqstream);
 
 			remainingData = Arrays.copyOfRange(remainingData, offset, remainingData.length);
 		}
-		if(this.currentRequestStream.get.requestEnded){
+		if(this.currentRequestStream.requestEnded){
 			if(logger.debug())
 				logger.debug(this.remoteName, " Received data after request ended");
 			this.close();
@@ -187,8 +187,8 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 	private def handleRequestTimeout(): Unit = {
 		logger.debug(this.remoteName, " Request timeout");
 		try{
-			assert(this.currentRequestStream.isEmpty);
-			this.onError.get (null, HTTPStatus.STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
+			assert(this.currentRequestStream == null);
+			this.onError(null, HTTPStatus.STATUS_REQUEST_TIMEOUT, HTTPCommon.MSG_REQUEST_TIMEOUT);
 			this.requestReceiver.reset();
 		}catch{
 			case e: Exception => {
@@ -214,7 +214,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 
 		private var chunkedTransfer = false;
 
-		var pendingResponse: Option[HTTPResponseData] = None;
+		var pendingResponse: HTTPResponseData = null;
 		def requestEnded = !this.request.hasAttachment(ProxyHTTP1Server.ATTACHMENT_KEY_DECHUNKER);
 
 		override def close(reason: MessageStreamClosedException.CloseReason): Unit = {
@@ -248,7 +248,7 @@ class ProxyHTTP1Server(private val connection: SocketConnection, private val con
 				if(this.chunkedTransfer)
 					ProxyHTTP1Server.this.connection.write(ProxyHTTP1Server.EMPTY_CHUNK);
 				this.closed = true;
-				ProxyHTTP1Server.this.currentRequestStream = None;
+				ProxyHTTP1Server.this.currentRequestStream = null;
 			}
 			return ProxyHTTP1Server.this.connection.isWritable();
 		}

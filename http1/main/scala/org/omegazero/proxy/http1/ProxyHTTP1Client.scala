@@ -39,11 +39,11 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 	private val transmitter = new HTTP1MessageTransmitter(this.connectionWS);
 	private val responseReceiver = new HTTP1ResponseReceiver(this.config.getMaxHeaderSize());
 
-	private var currentRequestStream: Option[OutgoingRequestStream] = None;
+	private var currentRequestStream: OutgoingRequestStream = null;
 
 	this.connection.on("writable", () => {
-		if(this.currentRequestStream.isDefined)
-			this.currentRequestStream.get.callOnWritable();
+		if(this.currentRequestStream != null)
+			this.currentRequestStream.callOnWritable();
 	});
 
 
@@ -55,34 +55,34 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 	
 	override def close(): Unit = {
 		this.connection.destroy();
-		if(this.currentRequestStream.isDefined)
-			this.currentRequestStream.get.close();
+		if(this.currentRequestStream != null)
+			this.currentRequestStream.close();
 	}
 
 
 	override def newRequest(request: HTTPRequest): HTTPClientStream = {
-		if(this.currentRequestStream.isDefined || this.connection.hasDisconnected())
+		if(this.currentRequestStream != null || this.connection.hasDisconnected())
 			return null;
 		if(request.isChunkedTransfer())
 			request.setHeader("transfer-encoding", "chunked");
-		this.currentRequestStream = Some(new OutgoingRequestStream(request));
-		return this.currentRequestStream.get;
+		this.currentRequestStream = new OutgoingRequestStream(request);
+		return this.currentRequestStream;
 	}
 
-	override def getActiveRequests(): Collection[HTTPClientStream] = if this.currentRequestStream.isDefined then Collections.singleton(this.currentRequestStream.get) else Collections.emptySet();
+	override def getActiveRequests(): Collection[HTTPClientStream] = if this.currentRequestStream != null then Collections.singleton(this.currentRequestStream) else Collections.emptySet();
 
 	override def getMaxConcurrentRequestCount(): Int = 1;
 
 
 	private def processResponseData(data: Array[Byte]): Unit = {
 		var remainingData = data;
-		if(this.currentRequestStream.isEmpty){
+		if(this.currentRequestStream == null){
 			logger.debug(this.remoteName, " Received unexpected data on connection");
 			this.close();
 			return;
 		}
 
-		if(this.currentRequestStream.get.getResponse() == null){
+		if(this.currentRequestStream.getResponse() == null){
 			var offset = this.responseReceiver.receive(remainingData, 0);
 			if(offset < 0)
 				return;
@@ -91,28 +91,28 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 			this.responseReceiver.reset();
 
 			if(response.isIntermediateMessage()){
-				this.currentRequestStream.get.responseReceived(response);
+				this.currentRequestStream.responseReceived(response);
 				return;
 			}
 
 			var dechunker = new MessageBodyDechunker(response, (resdata) => {
 				var last = resdata.length == 0;
-				this.currentRequestStream.get.callOnResponseData(new HTTPResponseData(response, last, resdata));
+				this.currentRequestStream.callOnResponseData(new HTTPResponseData(response, last, resdata));
 				if(last){
-					this.currentRequestStream.get.callOnResponseEnded(null);
+					this.currentRequestStream.callOnResponseEnded(null);
 					response.setAttachment(ProxyHTTP1Client.ATTACHMENT_KEY_DECHUNKER, null);
-					this.currentRequestStream = None;
+					this.currentRequestStream = null;
 					if("close".equals(response.getHeader("connection")))
 						this.connection.close();
 				}
 			});
 			response.setAttachment(ProxyHTTP1Client.ATTACHMENT_KEY_DECHUNKER, dechunker);
 
-			this.currentRequestStream.get.responseReceived(response);
+			this.currentRequestStream.responseReceived(response);
 
 			remainingData = Arrays.copyOfRange(remainingData, offset, remainingData.length);
 		}
-		this.currentRequestStream.get.getResponse().getAttachment(ProxyHTTP1Client.ATTACHMENT_KEY_DECHUNKER).asInstanceOf[MessageBodyDechunker].addData(remainingData);
+		this.currentRequestStream.getResponse().getAttachment(ProxyHTTP1Client.ATTACHMENT_KEY_DECHUNKER).asInstanceOf[MessageBodyDechunker].addData(remainingData);
 	}
 
 

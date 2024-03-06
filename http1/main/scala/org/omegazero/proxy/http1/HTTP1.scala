@@ -23,7 +23,7 @@ object HTTP1 {
 class HTTP1(downstreamConnection: SocketConnection, proxy: Proxy, config: HTTPEngineConfig)
 		extends AbstractHTTPEngine(downstreamConnection, proxy, config, new ProxyHTTP1Server(downstreamConnection, config)) {
 
-	this.httpServer.asInstanceOf[ProxyHTTP1Server].onError = Some(this.respondError(_, _, _));
+	this.httpServer.asInstanceOf[ProxyHTTP1Server].onError = this.respondError(_, _, _);
 
 	override def getRequestLogger(): Logger = HTTP1.logger;
 	override def getHTTPVersionName(): String = HTTP1.VERSION_NAME;
