@@ -95,6 +95,7 @@ class ProxyHTTP1Client(private val connection: SocketConnection, private val use
 				return;
 			}
 
+			response.setOther(this.currentRequestStream.getRequest());
 			var dechunker = new MessageBodyDechunker(response, (resdata) => {
 				var last = resdata.length == 0;
 				this.currentRequestStream.callOnResponseData(new HTTPResponseData(response, last, resdata));
