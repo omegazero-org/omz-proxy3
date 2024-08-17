@@ -1,16 +1,16 @@
 # omz-proxy version 3
 
-[![Build Status](https://drone.omegazero.org/api/badges/omegazero/omz-proxy3/status.svg)](https://drone.omegazero.org/omegazero/omz-proxy3)
-[![Documentation Build Status](https://docs.omegazero.org/ci/gen/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.omegazero.org/ci/#/repos/omegazero/omz-proxy3)
-[![Release](https://api.omegazero.org/v1/git/getrepobadge?author=omegazero&repository=omz-proxy3&metric=release&color=09b&width=100)](https://git.omegazero.org/omegazero/omz-proxy3/releases)
-[![Docs](https://docs.omegazero.org/api/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.omegazero.org/d/omegazero/omz-proxy3/)
+[![Build Status](https://sw-ci.warpcs.org/api/badges/omegazero/omz-proxy3/status.svg)](https://sw-ci.warpcs.org/omegazero/omz-proxy3)
+[![Documentation Build Status](https://docs.warpcs.org/ci/gen/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.warpcs.org/ci/#/repos/omegazero/omz-proxy3)
+[![Release](https://api.warpcs.org/v1/git/getrepobadge?author=omegazero&repository=omz-proxy3&metric=release&color=09b&width=100)](https://sw-vc.warpcs.org/omegazero/omz-proxy3/releases)
+[![Docs](https://docs.warpcs.org/api/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.warpcs.org/d/omegazero/omz-proxy3/)
 
-*omz-proxy* is the HTTP reverse proxy used for [omegazero.org](https://omegazero.org/) web services.
+*omz-proxy* is the HTTP reverse proxy used for [warpcs.org](https://warpcs.org/) web services.
 
-Prebuilt JARs: <https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy> (dependencies listed [here](https://docs.omegazero.org/d/omegazero/omz-proxy3/Installation))\
-Prebuilt JARs including dependencies: <https://drone.omegazero.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all>
+Prebuilt JARs: <https://sw-ci.warpcs.org/build-artifacts/java/org.omegazero.proxy:omz-proxy> (dependencies listed [here](https://docs.warpcs.org/d/omegazero/omz-proxy3/Installation))\
+Prebuilt JARs including dependencies: <https://sw-ci.warpcs.org/build-artifacts/java/org.omegazero.proxy:omz-proxy-all>
 
 ## Documentation
 
-Documentation is now available [here](https://docs.omegazero.org/d/omegazero/omz-proxy3/).
+Documentation is now available [here](https://docs.warpcs.org/d/omegazero/omz-proxy3/).
 
