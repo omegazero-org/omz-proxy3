@@ -1,0 +1,60 @@
+
+name: ci
+on: [push]
+
+jobs:
+  autobuild:
+    runs-on: ubuntu-latest
+    container:
+      image: sw-vc.warpcs.org/omegazero/java-build
+    steps:
+      - uses: actions/checkout@v5
+      - name: prepare
+        run: |
+          artifact-dl-java maven/org.json:json:20211205
+          artifact-dl-java omz/org.omegazero.common:omz-common:release
+          artifact-dl-java omz/org.omegazero.net:omz-netlib-nio:release
+          artifact-dl-java omz/org.omegazero.http:omz-http:latest
+          mkdir build
+          setversion base/main/java/org/omegazero/proxy/core/Proxy.java
+          setversion http1/main/resources/plugin.cfg
+          setversion http2/main/resources/plugin.cfg
+          curl -G "https://warpcs.org/site/software/r/license_bin_full.php" --data-urlencode "srcurl=${{ gitea.server_url }}/${{ gitea.repository }}/src/commit/${{ gitea.sha }}" > LICENSE_BIN
+      - name: build-base
+        run: |
+          mkdir -p build/base/META-INF
+          cp LICENSE_BIN build/base/META-INF/LICENSE
+          make base BINDIR=build
+      - name: build-http1
+        run: |
+          mkdir -p build/http1/META-INF
+          cp LICENSE_BIN build/http1/META-INF/LICENSE
+          make http1 BINDIR=build
+      - name: build-http2
+        run: |
+          mkdir -p build/http2/META-INF
+          cp LICENSE_BIN build/http2/META-INF/LICENSE
+          make http2 BINDIR=build
+      - name: merge-jars
+        run: |
+          mkdir build/base/licenses
+          mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_proxy
+          (cd build/base; unzip -uo ../../json-20211205.jar)
+          curl -G "https://raw.githubusercontent.com/stleary/JSON-java/master/LICENSE" > build/base/licenses/LICENSE_org_json
+          (cd build/base; unzip -uo ../../omz-common-release.jar)
+          [ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common
+          (cd build/base; unzip -uo ../../omz-netlib-nio-release.jar)
+          [ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net
+          (cd build/base; unzip -uo ../../omz-http-latest.jar)
+          [ ! -f build/base/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http
+          rm -r build/base/META-INF/*
+          mv build/base/licenses/* build/base/META-INF
+          jar cf build-base-all.jar -C build/base .
+      - name: publish
+        run: |
+          artifact-push-java build/omz-proxy3.jar omz/org.omegazero.proxy:omz-proxy
+          artifact-push-java build-base-all.jar omz/org.omegazero.proxy:omz-proxy-all
+          artifact-push-java build/http1.jar omz/org.omegazero.proxy:http1
+          artifact-push-java build/http2.jar omz/org.omegazero.proxy:http2
+    env:
+      OMZ_ARTIFACT_PUSH_TOKEN: ${{ secrets.ARTIFACT_PUSH_TOKEN }}
