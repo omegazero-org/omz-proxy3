@@ -1,6 +1,6 @@
 # omz-proxy version 3
 
-[![Build Status](https://sw-ci.warpcs.org/api/badges/omegazero/omz-proxy3/status.svg)](https://sw-ci.warpcs.org/omegazero/omz-proxy3)
+[![Build Status](https://sw-vc.warpcs.org/omegazero/omz-proxy3/actions/workflows/build.yaml/badge.svg)](https://sw-vc.warpcs.org/omegazero/omz-proxy3/actions)
 [![Documentation Build Status](https://docs.warpcs.org/ci/gen/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.warpcs.org/ci/#/repos/omegazero/omz-proxy3)
 [![Release](https://api.warpcs.org/v1/git/getrepobadge?author=omegazero&repository=omz-proxy3&metric=release&color=09b&width=100)](https://sw-vc.warpcs.org/omegazero/omz-proxy3/releases)
 [![Docs](https://docs.warpcs.org/api/badge.php?owner=omegazero&repo=omz-proxy3)](https://docs.warpcs.org/d/omegazero/omz-proxy3/)
