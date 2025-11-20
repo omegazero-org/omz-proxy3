@@ -42,13 +42,13 @@ jobs:
           (cd build/base; unzip -uo ../../json-20211205.jar)
           curl -G "https://raw.githubusercontent.com/stleary/JSON-java/master/LICENSE" > build/base/licenses/LICENSE_org_json
           (cd build/base; unzip -uo ../../omz-common-release.jar)
-          [ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common
+          [ ! -f build/base/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_common
           (cd build/base; unzip -uo ../../omz-netlib-nio-release.jar)
-          [ ! -f build/base/bin/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net
+          [ ! -f build/base/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_net
           (cd build/base; unzip -uo ../../omz-http-latest.jar)
           [ ! -f build/base/META-INF/LICENSE ] || mv build/base/META-INF/LICENSE build/base/licenses/LICENSE_org_omegazero_http
           rm -r build/base/META-INF/*
-          mv build/base/licenses/* build/base/META-INF
+          mv build/base/licenses/* build/base/META-INF && rm -r build/base/licenses
           jar cf build-base-all.jar -C build/base .
       - name: publish
         run: |
