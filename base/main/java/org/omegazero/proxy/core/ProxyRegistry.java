@@ -90,8 +90,11 @@ public final class ProxyRegistry {
 	 *
 	 * @param id The identifier for the client manager
 	 * @param mgr The client manager
+	 * @throws IllegalArgumentException If a client manager with the given id already exists
 	 */
 	public void registerClientManager(String id, NetClientManager mgr){
+		if(this.clientManagers.containsKey(id))
+			throw new IllegalArgumentException("A client manager with id '" + id + "' already exists");
 		this.clientManagers.put(id, mgr);
 	}
 
@@ -116,8 +119,11 @@ public final class ProxyRegistry {
 	 * @param name The protocol name
 	 * @param constructor The constructor
 	 * @param alpName The application layer protocol name
+	 * @throws IllegalArgumentException If an HTTP client implementation with the given name already exists
 	 */
 	public void registerHTTPClientImplementation(String name, HTTPClientConstructor constructor, String alpName){
+		if(this.httpClientImplementations.containsKey(name))
+			throw new IllegalArgumentException("An HTTP client implementation with name '" + name + "' already exists");
 		this.httpClientImplementations.put(name, new Object[] { constructor, alpName });
 		logger.info("Added HTTP client implementation for ", name);
 	}

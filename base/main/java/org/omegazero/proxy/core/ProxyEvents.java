@@ -30,6 +30,7 @@ public final class ProxyEvents {
 
 	public static final Event PREINIT = new Event("onPreinit", new Class<?>[] {});
 	public static final Event INIT = new Event("onInit", new Class<?>[] {});
+	public static final Event POSTINIT = new Event("onPostInit", new Class<?>[] {}); // since 3.11.1
 	public static final Event SHUTDOWN = new Event("onShutdown", new Class<?>[] {});
 	public static final Event DOWNSTREAM_CONNECTION = new Event("onDownstreamConnection", new Class<?>[] { SocketConnection.class });
 	public static final Event DOWNSTREAM_CONNECTION_CLOSED = new Event("onDownstreamConnectionClosed", new Class<?>[] { SocketConnection.class });

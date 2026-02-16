@@ -40,7 +40,7 @@ public final class HTTPCommon {
 	public static final String ATTACHMENT_KEY_REQUEST_ID = "engine_requestId";
 
 	public static final String MSG_BAD_REQUEST = "The proxy server did not understand the request";
-	public static final String MSG_NO_SERVER = "No appropriate upstream server was found for this request";
+	public static final String MSG_NO_SERVER = "No appropriate upstream server is available to handle this request";
 	public static final String MSG_REQUEST_TIMEOUT = "The client did not complete the request in time";
 	public static final String MSG_SERVER_ERROR = "An unexpected internal error has occurred";
 	public static final String MSG_UPSTREAM_CONNECT_FAILED = "An error occurred while connecting to the upstream server";

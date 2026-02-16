@@ -15,6 +15,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 
 import org.omegazero.common.util.PropertyUtil;
 import org.omegazero.common.logging.Logger;
@@ -36,6 +37,19 @@ public class UpstreamServer implements java.io.Serializable {
 	 * An immutable collection representing support for all protocols.
 	 */
 	public static final Collection<String> PROTOCOLS_ALL = Collections.singleton(null);
+
+	/**
+	 * Contains the IPv4 localhost address 127.0.0.1.
+	 *
+	 * @since 3.11.1
+	 */
+	public static final InetAddress LOCALHOST_IPV4;
+	/**
+	 * Contains the IPv6 localhost address ::1.
+	 *
+	 * @since 3.11.1
+	 */
+	public static final InetAddress LOCALHOST_IPV6;
 
 	/**
 	 * The amount of seconds to wait for a retry when an attempt to re-resolve an address, after its TTL expired, fails.
@@ -150,20 +164,20 @@ public class UpstreamServer implements java.io.Serializable {
 		this.clientImplOverride = clientImplOverride;
 
 		if(addressTTL >= 0)
-			this.addressExpiration = System.nanoTime() + addressTTL * 1000000000L;
+			this.addressExpiration = System.currentTimeMillis() + addressTTL * 1000L;
 	}
 
 
 	private void reresolveAddressIfNecessary() {
 		if(this.addressTTL < 0)
 			return;
-		long time = System.nanoTime();
+		long time = System.currentTimeMillis();
 		if(this.addressExpiration > 0 && time <= this.addressExpiration)
 			return;
 		String hostname = this.address.getHostName();
 		try{
 			this.address = InetAddress.getByName(hostname);
-			this.addressExpiration = time + this.addressTTL * 1000000000L;
+			this.addressExpiration = time + this.addressTTL * 1000L;
 			if(logger.debug())
 				logger.debug("Re-resolved address '", hostname, "': ", this.address.getHostAddress());
 		}catch(UnknownHostException e){
@@ -173,7 +187,7 @@ public class UpstreamServer implements java.io.Serializable {
 				nttl = addressNegativeTTL;
 			else
 				nttl = this.addressTTL;
-			this.addressExpiration = time + nttl * 1000000000L;
+			this.addressExpiration = time + nttl * 1000L;
 		}
 	}
 
@@ -268,7 +282,7 @@ public class UpstreamServer implements java.io.Serializable {
 
 	@Override
 	public int hashCode() {
-		return this.address.hashCode() + 36575 * this.plainPort + 136575 * this.securePort;
+		return Objects.hash(this.address, this.addressTTL, this.localAddress, this.plainPort, this.securePort, this.protocols, this.clientImplOverride);
 	}
 
 	@Override
@@ -276,11 +290,22 @@ public class UpstreamServer implements java.io.Serializable {
 		if(o == null || !(o instanceof UpstreamServer))
 			return false;
 		UpstreamServer u = (UpstreamServer) o;
-		return u.address.equals(this.address) && u.addressTTL == this.addressTTL && u.plainPort == this.plainPort && u.securePort == this.securePort && u.protocols.equals(this.protocols);
+		return Objects.equals(u.address, this.address) && u.addressTTL == this.addressTTL && Objects.equals(u.localAddress, this.localAddress) && u.plainPort == this.plainPort
+				&& u.securePort == this.securePort && Objects.equals(u.protocols, this.protocols) && Objects.equals(u.clientImplOverride, this.clientImplOverride);
 	}
 
 	@Override
 	public String toString() {
 		return "UpstreamServer{" + this.address + ":" + this.plainPort + "/" + this.securePort + "}";
+	}
+
+
+	static {
+		try{
+			LOCALHOST_IPV4 = InetAddress.getByName("127.0.0.1");
+			LOCALHOST_IPV6 = InetAddress.getByName("::1");
+		}catch(UnknownHostException e){
+			throw new AssertionError(e);
+		}
 	}
 }

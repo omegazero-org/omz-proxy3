@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 omegazero.org
+ * Copyright (C) 2021-2026 Wilton Arthur Poth
  *
  * This Source Code Form is subject to the terms of the Mozilla Public License, v. 2.0.
  * If a copy of the MPL was not distributed with this file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -183,6 +183,8 @@ public final class Proxy implements Application {
 		this.registry.forEachClientManager(this::initApplication);
 		if(this.nAppCount == 0)
 			throw new IllegalStateException("No network applications were started");
+
+		this.dispatchEvent(ProxyEvents.POSTINIT);
 
 		this.updateState(State.RUNNING);
 		logger.info("Initialization complete (", this.nAppCount, " network applications started)");
